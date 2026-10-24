@@ -152,6 +152,7 @@ class UpRes:
     head: pd.DataFrame
     spread: float = 0.0
     weak: bool = False
+    labels: str = "enrichment"
     imgt: list = field(default_factory=list)
     wt: str = ""
     m: object = None
@@ -160,21 +161,33 @@ class UpRes:
 # fits an uploaded table. rounds come in earliest first, from the Spec's insertion order.
 # with three rounds the later pair gives an honest cross-round test; with two there is only
 # a within-pair split, which is the weaker check the honest-notes forbid leaning on.
-def run_upload(raw, camp, lam=None):
+# camp reuses a vendored campaign's ANARCI numbering; parent is for any other dataset, which
+# brings its own reference sequence and gets plain 1..L positions. requiring an upload to match
+# a vendored alignment would make "it runs on other data" false.
+def run_upload(raw, camp=None, parent=None, lam=None):
     from . import ingest
 
-    rnds = ingest.rnds_of(raw)
-    if len(rnds) < 2:
-        raise ValueError(f"need at least two rounds, the upload has {rnds}")
-    early, late = rnds[0], rnds[1]
-
-    a = ingest.to_internal(raw, (late, early))
-    if len(rnds) >= 3:
-        b, mode = ingest.to_internal(raw, (rnds[2], early)), "cross-round"
+    if parent:
+        imgt, wt = encode.ref_cols(parent)
+    elif camp:
+        imgt, wt = encode.wt_cols(camp)
     else:
-        b, mode = a, "within-pair"
+        raise ValueError("need either a campaign to borrow an alignment from, or a parent sequence")
 
-    imgt, wt = encode.wt_cols(camp)
+    if ingest.scored(raw):
+        a, src = ingest.from_scored(raw)
+        b, mode, rnds, labels = a, "pre-scored", [], src
+    else:
+        rnds = ingest.rnds_of(raw)
+        if len(rnds) < 2:
+            raise ValueError(f"need at least two rounds, the upload has {rnds}")
+        early, late = rnds[0], rnds[1]
+        a = ingest.to_internal(raw, (late, early))
+        if len(rnds) >= 3:
+            b, mode = ingest.to_internal(raw, (rnds[2], early)), "cross-round"
+        else:
+            b, mode = a, "within-pair"
+        labels = "enrichment"
     tr = a[(a[s.SPLIT] == "train") & a[s.ENR_BIN].notna()]
     te = b[(b[s.SPLIT] == "test") & b[s.ENR_BIN].notna()]
     if len(tr) < 10 or len(te) < 10:
@@ -191,24 +204,29 @@ def run_upload(raw, camp, lam=None):
     cols = [s.VAR, PRED, CLS, s.ENR] + [s.cnt(r) for r in rnds]
 
     ranked = rk.sort_values(PRED, ascending=False)[cols].reset_index(drop=True)
-    # a near-flat score column means the fit found almost nothing; the ranking is then an
-    # ordering of noise and should not be presented as a result
+    cf = model.coefs(m, nm)
+    auc = model.auc(m, Xte, te[s.ENR_BIN])
+    # spread alone is not enough: a model that memorises its training rows produces confident,
+    # well-spread scores and still generalises at chance, which is exactly what an all-singles
+    # assay does. so skill on held-out rows counts too.
     spread = float(ranked[PRED].std())
+    weak = bool(spread < 0.02 or len(cf) < 30 or (np.isfinite(auc) and auc < 0.6))
     return UpRes(
         rnds=rnds,
         mode=mode,
+        labels=labels,
         spread=spread,
-        weak=bool(spread < 0.02 or len(model.coefs(m, nm)) < 30),
+        weak=weak,
         n=len(a),
         n_tr=len(tr),
         n_te=len(te),
         n_feat=Xtr.shape[1],
-        auc=model.auc(m, Xte, te[s.ENR_BIN]),
+        auc=auc,
         pr=model.pr_auc(m, Xte, te[s.ENR_BIN]),
         ranked=ranked,
-        cf=model.coefs(m, nm),
+        cf=cf,
         conv=m.conv,
-        head=a.head(8)[[s.VAR, s.AA_ALN] + [s.cnt(r) for r in rnds] + [s.ENR, s.ENR_BIN]],
+        head=a.head(8)[[s.VAR] + [s.cnt(r) for r in rnds] + [s.ENR, s.ENR_BIN]],
         imgt=imgt,
         wt=wt,
         m=m,

@@ -91,10 +91,11 @@ def chk_raw(df, rnds, n_pos=None, alph=None):
     if miss:
         raise ValueError(f"upload missing: {miss}")
     have = [r for r in rnds if cnt(r) in df.columns]
-    if len(have) < 2:
+    if len(have) < 2 and ENR not in df.columns:
         raise ValueError(
             f"need counts for at least two rounds, found {len(have)}; "
-            f"expected some of {[cnt(r) for r in rnds]}"
+            f"expected some of {[cnt(r) for r in rnds]}. "
+            f"a dataset that already carries an enrichment score needs no counts"
         )
     if df[VAR].duplicated().any():
         raise ValueError(f"duplicate var_id: {df.loc[df[VAR].duplicated(), VAR].head(5).tolist()}")

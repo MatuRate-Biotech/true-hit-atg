@@ -74,3 +74,27 @@ AT110, train on `FACS1/MACS`, test on `FACS2/MACS`. Three reasons:
 
 RX002 is the balanced alternative (52% positive, 16,858 labeled) and the campaign the paper
 associates with designed-variant measurements, so it is the natural second campaign.
+
+---
+
+## Outside data used for the generality test
+
+Not vendored — derived from ProteinGym and regenerated on demand, since the source is a 16 MB
+parquet shard and the project's claim rests on the method, not on holding the files.
+
+Source: `OATML-Markslab/ProteinGym_v1` on HuggingFace, `DMS_substitutions/train-00000-of-00005.parquet`,
+plus `reference_files/DMS_substitutions.csv` from the GitHub repo for `target_seq` (the parent)
+and assay metadata. Columns: `DMS_score`, `DMS_score_bin`, `mutated_sequence`, `target_seq`,
+`mutant`, `DMS_id`.
+
+| Assay | Rows used | Parent | Shape | Why |
+|---|---|---|---|---|
+| `HIS7_YEAST_Pokusaeva_2019` | 20,000 sampled, seed 0 | 220 aa | 7.0 substitutions per variant, 65% positive | multi-mutant, so substitutions recur and the model class applies |
+| `PAI1_HUMAN_Huttinger_2021` | all 5,345 | 402 aa | all single mutants, 48% positive | the boundary case: one variant per substitution |
+
+To regenerate, download the shard, filter on `DMS_id`, and write `variant_id`,
+`mutated_sequence`, `DMS_score`, `DMS_score_bin`; the parent is `target_seq`, identical on every
+row of an assay. Load with an `ingest.Spec` carrying `enr_col="DMS_score"` and
+`enr_bin_col="DMS_score_bin"` and no rounds, then `pipeline.run_upload(raw, parent=...)`.
+
+Neither assay has counts, so **enrichment never runs on them**. See context.md section 7.

@@ -10,6 +10,9 @@ class Cfg:
     min_ct_rnd: str = ""
     norm: str = "cpm"
     seq_col: str = "aa_aln"
+    # off by default: the paper's model is pure one-hot and the reproduction
+    # numbers depend on it
+    props: bool = False
     seed: int = 0
     out: str = "data/out"
 

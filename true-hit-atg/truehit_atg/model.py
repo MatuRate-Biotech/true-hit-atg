@@ -49,6 +49,10 @@ def coefs(m, names):
     b = m.coef_.ravel()
     nz = b != 0
     out = pd.DataFrame({"feat": np.asarray(names)[nz], "beta": b[nz]})
+    # a penalty too strong for the dataset zeroes every weight, and rsplit on an empty
+    # column yields no columns at all
+    if out.empty:
+        return pd.DataFrame({c: pd.Series(dtype="object") for c in ("feat", "beta", "imgt", "aa")})
     out[["imgt", "aa"]] = out["feat"].str.rsplit("_", n=1, expand=True)
     return out.reindex(out["beta"].abs().sort_values(ascending=False).index).reset_index(drop=True)
 

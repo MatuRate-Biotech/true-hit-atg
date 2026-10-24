@@ -15,6 +15,9 @@ class Spec:
     rnds: dict
     drop_gaps: bool = False
     note: str = ""
+    # a dataset that arrives already scored has no counts, so enrichment does not run
+    enr_col: str = ""
+    enr_bin_col: str = ""
 
 
 def probe(path, n=20):
@@ -33,6 +36,9 @@ def apply_spec(path, spec, n_pos=None):
     df = pd.read_csv(path)
     want = {spec.var: s.VAR, spec.seq: s.AA_ALN}
     want.update({c: s.cnt(r) for r, c in spec.rnds.items()})
+    for c in (spec.enr_col, spec.enr_bin_col):
+        if c:
+            want[c] = c
     miss = [c for c in want if c not in df.columns]
     if miss:
         raise ValueError(f"source columns not in {path}: {miss}; file has {list(df.columns)}")
@@ -42,12 +48,35 @@ def apply_spec(path, spec, n_pos=None):
     if spec.drop_gaps:
         out[s.AA_ALN] = out[s.AA_ALN].str.replace(encode.GAP, "", regex=False)
     out[s.VAR] = out[s.VAR].astype(str)
+    if spec.enr_col:
+        out[s.ENR] = df[spec.enr_col].astype(float)
+    if spec.enr_bin_col:
+        out[s.ENR_BIN] = df[spec.enr_bin_col].astype(float)
     return s.chk_raw(out, list(spec.rnds), n_pos=n_pos, alph=encode.ALPH)
 
 
 def rnds_of(raw):
     pre = len(s.cnt(""))
     return [c[pre:] for c in raw.columns if c.startswith(s.cnt(""))]
+
+
+def scored(raw):
+    return s.ENR in raw.columns
+
+
+# a pre-scored upload skips enrichment entirely: there are no counts to normalize and no
+# ratio to take. only the split and the labels are derived here.
+def from_scored(raw):
+    out = raw.copy()
+    out[s.AA] = out[s.AA_ALN].str.replace(encode.GAP, "", regex=False)
+    if s.CDR3 not in out.columns:
+        out[s.CDR3] = ""
+    src = "supplied"
+    if s.ENR_BIN not in out.columns:
+        out[s.ENR_BIN] = enrich.binarize(out[s.ENR], out[s.ENR].notna())
+        src = "gmm"
+    out[s.SPLIT] = enrich.make_split(out[s.ENR_BIN])
+    return s.chk(out, (), n_pos=int(out[s.AA_ALN].str.len().iloc[0])), src
 
 
 def to_internal(raw, pair, camp=None):

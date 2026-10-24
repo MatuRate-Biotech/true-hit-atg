@@ -219,11 +219,17 @@ with t6:
         "fitting code as the vendored campaigns. The model only ever proposes a column "
         "mapping — it cannot touch the pipeline."
     )
-    st.info(
-        f"The sequences must already be aligned to the same {len(r.wt)} positions as {camp}. "
-        "An upload with its own parent needs its own ANARCI numbering, which is not built yet.",
-        icon=None,
+    st.caption(
+        "Leave the parent box empty to borrow the selected campaign's alignment, or paste the "
+        "dataset's own reference sequence to run on anything else. With a parent supplied, "
+        "positions are numbered 1..L rather than IMGT, which is antibody-specific."
     )
+    par = "".join(
+        st.text_area(
+            f"Parent sequence (optional; blank uses {camp}'s {len(r.wt)}-position alignment)",
+            value="", height=68, key="ob_parent",
+        ).split()
+    ).upper()
 
     up = st.file_uploader("CSV", type="csv", key="onboard_csv")
     if up is not None:
@@ -245,15 +251,17 @@ with t6:
         if st.button("Ask the model to map it", type="primary"):
             try:
                 with st.spinner("Reading the columns…"):
-                    raw, spec, hist = agent.onboard(tmp, n_pos=len(r.wt))
+                    raw, spec, hist = agent.onboard(tmp, n_pos=len(par) if par else len(r.wt))
             except RuntimeError as e:
                 st.error(str(e))
                 st.stop()
-            st.session_state["ob"] = (str(tmp), spec, [a.as_dict() for a in hist], len(r.wt))
+            st.session_state["ob"] = (
+                str(tmp), spec, [a.as_dict() for a in hist], len(par) if par else len(r.wt), par
+            )
 
     ob = st.session_state.get("ob")
     if ob:
-        path, spec, hist, n_pos = ob
+        path, spec, hist, n_pos, par = ob
         st.markdown(f"**{len(hist)} attempt(s)**")
         for i, a in enumerate(hist, 1):
             ok = a["ok"]
@@ -274,8 +282,17 @@ with t6:
         else:
             raw = ingest.apply_spec(path, spec, n_pos=n_pos)
             rnds = ingest.rnds_of(raw)
-            st.markdown(f"**Rounds, earliest first:** {' -> '.join(rnds)}")
-            if len(rnds) < 3:
+            if ingest.scored(raw):
+                st.markdown("**Already scored**, so there are no rounds to enrich.")
+                st.warning(
+                    "This upload arrives with its own score, so **the enrichment code does "
+                    "not run at all** — only the encoding and the model. Nothing here says "
+                    "anything about how enrichment behaves on outside data, because it was "
+                    "never exercised on it."
+                )
+            else:
+                st.markdown(f"**Rounds, earliest first:** {' -> '.join(rnds)}")
+            if rnds and len(rnds) < 3:
                 st.warning(
                     "Two rounds, so there is no third round to test against. The model will "
                     "train and rank, but **no honest accuracy number is available from this "
@@ -287,7 +304,8 @@ with t6:
                     with st.spinner("Enriching, encoding, fitting…"):
                         with warnings.catch_warnings():
                             warnings.simplefilter("ignore")
-                            u = pl.run_upload(raw, camp, lam=lam)
+                            u = pl.run_upload(raw, camp=None if par else camp,
+                                              parent=par or None, lam=lam)
                 except ValueError as e:
                     st.error(str(e))
                 else:
@@ -297,7 +315,13 @@ with t6:
                     k[2].metric("Features", f"{u.n_feat:,}")
                     k[3].metric("Substitutions kept", f"{len(u.cf):,}")
 
-                    if u.mode == "cross-round":
+                    if u.mode == "pre-scored":
+                        st.caption(
+                            f"Labels came from the file ({u.labels}). Held-out ROC-AUC "
+                            f"{u.auc:.3f}, PR-AUC {u.pr:.3f}, on a random split of the scored "
+                            "variants."
+                        )
+                    elif u.mode == "cross-round":
                         m1, m2 = st.columns(2)
                         m1.metric("Cross-round ROC-AUC", f"{u.auc:.3f}")
                         m2.metric("Cross-round PR-AUC", f"{u.pr:.3f}")
@@ -320,11 +344,13 @@ with t6:
 
                     if u.weak:
                         st.error(
-                            f"**This fit found little signal.** Only {len(u.cf)} substitutions "
-                            f"survived the penalty and the predicted scores span "
-                            f"{u.spread:.3f}, so the ranking below is close to an ordering of "
-                            "noise. Usually too few variants, too few labelled rows, or a "
-                            "slice of a campaign rather than the whole of one."
+                            f"**This fit found little signal.** {len(u.cf)} substitutions "
+                            f"survived the penalty, the scores span {u.spread:.3f}, and "
+                            f"held-out ROC-AUC is {u.auc:.3f}. The ranking below is close to "
+                            "an ordering of noise. Common causes: too few labelled rows, a "
+                            "slice of a campaign rather than the whole of one, or a dataset "
+                            "where every variant carries a substitution seen nowhere else — "
+                            "a one-hot over substitutions cannot transfer to one it never saw."
                         )
 
                     st.markdown("**Ranked candidates**")

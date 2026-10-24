@@ -565,6 +565,54 @@ published 0.964 and 0.935 both sit inside those ranges. So the reproduction clai
 lucky draw, but quoting our figures to three decimals overstates their precision; two is
 honest.
 
+### Outside data: what generalises and what does not
+
+Run 2026-10-24 against ProteinGym (`OATML-Markslab/ProteinGym_v1`, DMS substitutions shard 0).
+**ProteinGym has no antibody assay** — none of its 217 is a nanobody, VHH or antibody variable
+domain — so scoping an outside test to assays matching a vendored alignment would have selected
+an empty set. Uploads supply their own parent instead, and get plain `1..L` positions because
+IMGT numbering is antibody-specific.
+
+| Assay | Shape | Result |
+|---|---|---|
+| `HIS7_YEAST_Pokusaeva_2019` | 20k variants, 220 aa, **7.0 substitutions each** | **ROC-AUC 0.959** at the paper's own penalty (0.973 at lam 0.1) |
+| `PAI1_HUMAN_Huttinger_2021` | 5,345 variants, 402 aa, **all single mutants** | **ROC-AUC 0.500**, at every penalty |
+
+**The pipeline is general; the model class needs substitutions that recur.** HIS7 is a yeast
+enzyme scored for growth — nothing to do with antibodies — and the same code reaches 0.959 on
+it. PAI-1 fails for a reason that is arithmetic, not data quality: a systematic single-mutant
+scan contains each substitution exactly once, so a substitution held out to test was **by
+construction** never in training. Measured: 1,069 of 1,069 PAI-1 test rows had no trained
+feature, every prediction collapsed to the intercept. AT110 escapes this because its variants
+carry 3.18 substitutions that recur — only 1 of 771 test rows has no trained feature.
+
+Both assays are pre-scored, so **the enrichment code did not run on either**. Outside data has
+exercised `encode -> model` only, and the app says so. If a judge asks whether enrichment has
+been tested on anything but Paul et al., the answer is no.
+
+### Property features, and why Feature B needed them
+
+The same arithmetic broke Feature B, which proposes *novel* single substitutions. Measured on
+AT110: of 1,606 possible novel single substitutions, the one-hot model gives them **1 distinct
+score** — every one tied on the intercept, spread 0.0000. A ranking of them would have been
+meaningless.
+
+`CFG.props` adds one column per position holding the BLOSUM62 score of parent to variant,
+loaded from biopython rather than transcribed. Measured against criteria fixed before the run:
+
+| Criterion | Result |
+|---|---|
+| AT110 cross-round unchanged | **pass** — 0.960 to 0.956, delta -0.003 |
+| Novel substitutions separate | **pass** — 1 distinct score to **93**, spread 0.318. At position 4, L->D (BLOSUM -4) scores 0.036 against L->I (+2) at 0.169 |
+| PAI-1 rises clearly above chance | **fail** — 0.500 to 0.515, not clearly above |
+
+So Feature B is viable again and PAI-1 stays out of reach. No penalty sweep was run to chase
+the third criterion; that was agreed in advance, and it remains the obvious thing to try if
+anyone revisits it.
+
+**`props` defaults to off.** The published reproduction depends on the paper's pure one-hot
+encoding, and the reproduction tests are the tripwire that this stayed additive.
+
 ### Stretch, in order, each independently droppable
 
 1. **Upload path.** Accept the public format `{clone id, sequence, count per round}` as CSV and

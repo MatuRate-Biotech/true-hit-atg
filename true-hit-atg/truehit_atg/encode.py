@@ -1,6 +1,7 @@
 import numpy as np
 
 from . import data
+from .config import CFG
 
 AAS = "ACDEFGHIKLMNPQRSTVWY"
 GAP = "-"
@@ -55,9 +56,42 @@ def feats(imgt, wt):
     return [n for n, k in zip(nm, keep) if k], keep
 
 
-def encode(seqs, camp=None, imgt=None, wt=None):
+_BL = None
+# BLOSUM62 raw scores run about -4..+11; the one-hot columns are 0/1, and L1 penalizes a
+# large-valued feature less for the same effect. a fixed divisor keeps them comparable and,
+# unlike standardizing on batch statistics, cannot leak between train and test.
+BL_SCALE = 4.0
+
+
+def blosum():
+    global _BL
+    if _BL is None:
+        from Bio.Align import substitution_matrices
+
+        _BL = substitution_matrices.load("BLOSUM62")
+    return _BL
+
+
+# one column per position carrying the parent->variant exchangeability, zero where unchanged.
+# a substitution the model has never seen still lands in a column that may carry weight, which
+# the one-hot alone cannot do.
+def prop_cols(seqs, wt):
+    m = blosum()
+    P = np.zeros((len(seqs), len(wt)), dtype=np.float32)
+    for i, q in enumerate(seqs):
+        for j, (a, b) in enumerate(zip(wt, q)):
+            if a != b:
+                try:
+                    P[i, j] = m[a, b]
+                except (KeyError, IndexError):
+                    P[i, j] = 0.0
+    return P / BL_SCALE
+
+
+def encode(seqs, camp=None, imgt=None, wt=None, props=None):
     if wt is None:
         imgt, wt = wt_cols(camp)
+    seqs = list(seqs)
     X, unk = onehot(seqs)
     nm, keep = feats(imgt, wt)
     if X.shape[1] != keep.size:
@@ -65,7 +99,11 @@ def encode(seqs, camp=None, imgt=None, wt=None):
             f"sequences are {X.shape[1] // D} positions, parent alignment is {len(wt)}; "
             f"they must match for one-hot columns to mean the same thing"
         )
-    return X[:, keep], nm, unk
+    X = X[:, keep]
+    if props if props is not None else CFG.props:
+        X = np.hstack([X.astype(np.float32), prop_cols(seqs, wt)])
+        nm = list(nm) + [f"{p}_blosum" for p in imgt]
+    return X, nm, unk
 
 
 # the parent in model space has no gaps in any of the three campaigns, so for proposals built
@@ -90,3 +128,9 @@ def place(ref, pos, aa):
         raise ValueError(f"{aa!r} is not one of the 20 amino acids")
     i = idx[pos]
     return ref[:i] + aa + ref[i + 1 :]
+
+
+# IMGT numbering is antibody-specific and meaningless for a generic assay, so an upload that
+# brings its own parent gets plain 1..L positions. the heatmap then reads as positions.
+def ref_cols(parent):
+    return [str(i + 1) for i in range(len(parent))], parent

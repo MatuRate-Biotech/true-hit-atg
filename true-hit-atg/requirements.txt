@@ -6,3 +6,4 @@ matplotlib>=3.9
 pytest>=8.0
 streamlit>=1.37
 anthropic>=2.0
+biopython>=1.84
