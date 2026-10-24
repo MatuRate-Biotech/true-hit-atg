@@ -24,5 +24,14 @@ class Cfg:
     max_iter: int = 2000
     top_n: int = 50
 
+    # column mapping is a small extraction task, so Sonnet at low effort. the skill's
+    # default is claude-opus-5-5; swap ai_model if the agent starts guessing badly.
+    ai_model: str = "claude-sonnet-5-5"
+    ai_key_env: str = "ANTHROPIC_API_KEY"
+    ai_max_tries: int = 3
+    ai_max_tokens: int = 8192
+    ai_effort: str = "low"
+    ai_timeout: int = 60
+
 
 CFG = Cfg()
