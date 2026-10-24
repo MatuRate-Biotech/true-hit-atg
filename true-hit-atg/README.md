@@ -126,7 +126,9 @@ every feature a substitution indicator and every weight readable as a preference
 
 The pre-filter library sizes are not in the shipped tables; they are recovered exactly from the
 normalized columns and live in `schema.LIBS`. An upload has only its own column sum, which
-shifts every log ratio by a constant and so leaves the ranking untouched.
+shifts log ratios by a constant only where neither round sits on the 1 CPM floor — a different
+library size moves the floor, so floored rows shift by different amounts. Measured on AT110
+that is Spearman 0.9994 against the true sizes, with the labels unchanged.
 
 ### Read the baselines carefully
 

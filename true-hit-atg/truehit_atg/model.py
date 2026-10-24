@@ -51,3 +51,24 @@ def coefs(m, names):
     out = pd.DataFrame({"feat": np.asarray(names)[nz], "beta": b[nz]})
     out[["imgt", "aa"]] = out["feat"].str.rsplit("_", n=1, expand=True)
     return out.reindex(out["beta"].abs().sort_values(ascending=False).index).reset_index(drop=True)
+
+
+# AUC within strata, weighted by comparable pairs. a predictor that is constant inside a
+# stratum scores 0.500 here by construction, which is what makes this the comparison with
+# the mutation-load confound removed. pooling ranks across strata instead biases low,
+# because cross-stratum pairs contribute 0.5.
+def cond_auc(y, p, strat):
+    y = np.asarray(y).astype(int)
+    p = np.asarray(p, dtype=float)
+    strat = np.asarray(strat)
+    num = den = 0.0
+    for v in np.unique(strat):
+        m = strat == v
+        yy = y[m]
+        npos, nneg = int(yy.sum()), int((1 - yy).sum())
+        if npos == 0 or nneg == 0:
+            continue
+        w = npos * nneg
+        num += w * roc_auc_score(yy, p[m])
+        den += w
+    return num / den if den else float("nan")

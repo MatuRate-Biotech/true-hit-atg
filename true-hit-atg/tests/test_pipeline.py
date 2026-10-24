@@ -1,5 +1,7 @@
 import warnings
 
+import numpy as np
+
 import pytest
 
 from truehit_atg import pipeline as pl, schema as s
@@ -79,3 +81,45 @@ def test_matches_published_numbers(camp):
         r = pl.run(camp)
     assert abs(r.auc_te - roc) < 0.03, f"{camp} ROC {r.auc_te:.3f} vs published {roc}"
     assert abs(r.pr_te - pr) < 0.03, f"{camp} PR {r.pr_te:.3f} vs published {pr}"
+
+
+def test_cond_auc_constant_within_stratum_is_half():
+    strat = [1, 1, 1, 2, 2, 2]
+    y = [0, 1, 1, 0, 0, 1]
+    p = [7.0, 7.0, 7.0, 3.0, 3.0, 3.0]
+    assert pl.model.cond_auc(y, p, strat) == pytest.approx(0.5)
+
+
+def test_cond_auc_mutation_count_itself_is_half():
+    strat = [1, 1, 2, 2]
+    y = [0, 1, 0, 1]
+    assert pl.model.cond_auc(y, strat, strat) == pytest.approx(0.5)
+
+
+def test_cond_auc_perfect_ordering_is_one():
+    strat = [1, 1, 2, 2]
+    y = [0, 1, 0, 1]
+    p = [0.1, 0.9, 0.2, 0.8]
+    assert pl.model.cond_auc(y, p, strat) == pytest.approx(1.0)
+
+
+def test_cond_auc_skips_single_class_strata():
+    strat = [1, 1, 2, 2]
+    y = [0, 1, 1, 1]
+    p = [0.1, 0.9, 0.5, 0.5]
+    assert pl.model.cond_auc(y, p, strat) == pytest.approx(1.0)
+    assert np.isnan(pl.model.cond_auc([1, 1], [0.1, 0.2], [1, 1]))
+
+
+WITHIN = {"AT110": 0.945, "RX002": 0.785}
+
+
+@pytest.mark.parametrize("camp", list(WITHIN))
+def test_within_load_auc(camp):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        r = pl.run(camp)
+    assert abs(r.auc_within - WITHIN[camp]) < 0.03
+    # the claim the pitch rests on: with mutation load held fixed the heuristic has no
+    # resolution at all, and the model still orders variants
+    assert r.auc_within > 0.6

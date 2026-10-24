@@ -318,14 +318,52 @@ approximation, "was not seen in the input round".
 | AT110 | 0.960 | 0.752 | **+0.208** | 0.989 |
 | RX002 | 0.952 | 0.933 | **+0.019** | 0.962 |
 
-On RX002 counting substitutions from the parent gets 0.933 on its own, so the model adds almost
-nothing over it. AT110 is the campaign where the learned model clearly earns its place, and it
-is the one to lead with for that claim. If RX002 is on screen — and it will be, if the affinity
-validation happens — **do not repeat the AT110 margin**; the honest line there is that the model
-matches a simple mutation-count heuristic, and its value is scoring unsequenced clones rather
-than out-ranking that heuristic. Worth understanding why before the pitch: RX002 variants carry
-more substitutions on average (4.9 against AT110's 3.5, max 67 against 35), so mutation load
-alone separates its classes better.
+On RX002 counting substitutions from the parent gets 0.933 on its own, so on the aggregate the
+model adds almost nothing over it. RX002 variants carry more substitutions (mean 4.9 against
+AT110's 3.5, max 67 against 35), so mutation load alone separates its classes well.
+
+**Do not defend this by saying the model's value is scoring unsequenced clones.** That answers
+the *counts* baseline, which needs a clone to have been sequenced. It does not answer
+substitutions-from-parent, which is sequence-only and computable for any pasted sequence. A
+judge gets there in one question.
+
+### The within-load comparison, which is the real answer
+
+Mutation count cannot order two variants that carry the same number of substitutions — two
+different single substitutions are both n=1 — so **within a fixed load it scores exactly 0.500
+by construction.** The model has no such limit. Measured 2026-10-24, `pipeline.Res.auc_within`:
+
+| Campaign | aggregate model | aggregate heuristic | **within-load model** | within-load heuristic |
+|---|---|---|---|---|
+| AT110 | 0.960 | 0.752 | **0.945** | 0.500 |
+| RX002 | 0.952 | 0.933 | **0.785** | 0.500 |
+
+RX002's 0.933 is *entirely* mutation load. Strip the load and the heuristic has no resolution
+left, while the model keeps 0.785. **This is the uncontaminated comparison and it holds on both
+campaigns**, which is a stronger claim than either aggregate and the one to make under
+questioning.
+
+*Method:* pair-weighted conditional AUC — AUC within each stratum, weighted by
+`n_pos * n_neg`. `model.cond_auc()`. The tempting alternative of pooling
+percentile-ranks-within-stratum gives 0.853 and 0.596 and is **biased low**, because
+cross-stratum pairs contribute 0.5 by construction. Do not quote those.
+
+### Where it does not hold: single substitutions
+
+| Campaign | single-mutant test rows | of which enriched | stratum AUC |
+|---|---|---|---|
+| AT110 | 99 | 3 (3.0%) | 0.403 |
+| RX002 | 166 | 2 (1.2%) | 0.613 |
+
+Across all labelled rows it is 22 of 442 and 11 of 760. At those positive counts both AUCs are
+noise, and one is below chance. **We cannot demonstrate single-substitution skill on this
+data in either campaign, and must not claim it.**
+
+This matters twice over. It is Feature B's regime — that feature proposes single substitutions
+and ranks them with a model whose skill there is unmeasured, so its tab must say so. And it is
+where the paper's RX002 BLI measurements live, since those are single substitutions. So the BLI
+data is not merely a nice validation: it is the only thing that could test this regime at all.
+That makes it the honest next step rather than a gap to hide.
 
 Two consequences, both load-bearing for the pitch:
 

@@ -26,6 +26,7 @@ class Res:
     auc_strict: float
     n_strict: int
     auc_nmut: float
+    auc_within: float
     auc_cnt: float
     roc: tuple
     cf: pd.DataFrame
@@ -67,6 +68,9 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
 
     nmu = n_mut(te[s.AA_ALN], wt)
     auc_nm = enrich.baseline_auc(nmu, te[s.ENR_BIN])
+    # mutation count cannot order variants that carry the same number of substitutions,
+    # so within a load it scores 0.500 and whatever the model scores is sequence signal
+    auc_wi = model.cond_auc(te[s.ENR_BIN], model.score(m, Xte), nmu)
     # counts baseline: circular, the label is arithmetic on these same counts. kept to show that.
     auc_ct = enrich.baseline_auc(a.loc[te.index, s.ENR], te[s.ENR_BIN])
 
@@ -92,6 +96,7 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
         auc_strict=auc_st,
         n_strict=int(keep.sum()),
         auc_nmut=auc_nm,
+        auc_within=auc_wi,
         auc_cnt=auc_ct,
         roc=model.roc(m, Xte, te[s.ENR_BIN]),
         cf=model.coefs(m, nm),

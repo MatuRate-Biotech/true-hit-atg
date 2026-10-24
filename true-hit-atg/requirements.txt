@@ -1,6 +1,6 @@
 pandas>=2.2
 numpy>=1.26
-scikit-learn>=1.5
+scikit-learn>=1.5,<1.10
 scipy>=1.13
 matplotlib>=3.9
 pytest>=8.0

@@ -65,8 +65,10 @@ CAMPS = {
 
 # pre-filter library sizes, recovered exactly from the shipped norm_* columns. upstream
 # normalized to CPM against the library before count filtering, and that total is not in the
-# tables. an upload has only its own column sum, which shifts every log ratio by a constant
-# and so leaves the ranking untouched.
+# tables. an upload has only its own column sum. that shifts log ratios by a constant only
+# where neither round sits on the 1 CPM floor: a different library size moves the floor, so
+# floored rows shift by different amounts. measured on AT110 the effect is small but real,
+# spearman 0.9994 against the true sizes, with the labels unchanged.
 LIBS = {
     "AT110": {"MACS": 136075, "FACS1": 150367, "FACS2": 285531},
     "NbB7": {"naive": 226146, "MACS": 241225, "FACS1": 230677, "FACS2": 168989, "FACS3": 1524777},

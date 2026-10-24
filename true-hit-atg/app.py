@@ -119,15 +119,22 @@ with t2:
         )
 
     st.markdown("**Against baselines**")
-    b = st.columns(2)
+    b = st.columns(3)
     b[0].metric("Substitutions from parent", f"{r.auc_nmut:.3f}")
     b[1].metric("Observed counts", f"{r.auc_cnt:.3f}")
+    b[2].metric("Model, within fixed load", f"{r.auc_within:.3f}")
     st.caption(
-        "Substitution count is the fair comparison: like the model, it sees only sequence. "
-        "Ranking by observed counts scores higher, but the label is arithmetic on those same "
-        "counts, so that number is circular and is shown only to make the circularity visible. "
-        "The model's value is that it needs no counts at all, which is what lets it score "
-        "clones the experiment never contained."
+        "Counting substitutions from the parent is the fair comparison, because like the model "
+        "it sees only sequence. Ranking by observed counts scores higher still, but the label "
+        "is arithmetic on those same counts, so that number is circular and is shown only to "
+        "make the circularity visible."
+    )
+    st.caption(
+        f"**The third number is the one that settles it.** Mutation count cannot order two "
+        f"variants carrying the same number of substitutions, so within a fixed load it scores "
+        f"0.500 by construction. The model scores {r.auc_within:.3f} there — sequence signal "
+        "with the mutation-load confound removed. Single substitutions are the exception: this "
+        "data has too few enriched single mutants to measure that case either way."
     )
 
     f, ax = plt.subplots(figsize=(4.5, 4.5))
