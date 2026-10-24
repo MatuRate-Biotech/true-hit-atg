@@ -1,10 +1,13 @@
+import json
+import tempfile
 import warnings
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-from truehit_atg import pipeline as pl, schema as s
+from truehit_atg import agent, ingest, pipeline as pl, schema as s
 from truehit_atg.config import CFG
 
 st.set_page_config(page_title="TrueHit ATG", layout="wide")
@@ -68,8 +71,9 @@ except ValueError as e:
 if not r.conv:
     st.warning("The solver hit its iteration cap — coefficients may not be settled.")
 
-t1, t2, t3, t4, t5 = st.tabs(
-    ["Enrichment", "Model", "Candidates", "Substitution preferences", "Score sequences"]
+t1, t2, t3, t4, t5, t6 = st.tabs(
+    ["Enrichment", "Model", "Candidates", "Substitution preferences", "Score sequences",
+     "Onboard a dataset"]
 )
 
 with t1:
@@ -206,3 +210,127 @@ with t5:
             if unk:
                 st.warning(f"{unk} residues were not recognised and were read as gaps.")
             st.dataframe(out, use_container_width=True, hide_index=True)
+
+with t6:
+    st.subheader("Onboard someone else's dataset")
+    st.caption(
+        "Upload a CSV of clones with per-round counts. A model reads the column names and "
+        "writes the converter; the file then runs through the same enrichment, encoding and "
+        "fitting code as the vendored campaigns. The model only ever proposes a column "
+        "mapping — it cannot touch the pipeline."
+    )
+    st.info(
+        f"The sequences must already be aligned to the same {len(r.wt)} positions as {camp}. "
+        "An upload with its own parent needs its own ANARCI numbering, which is not built yet.",
+        icon=None,
+    )
+
+    up = st.file_uploader("CSV", type="csv", key="onboard_csv")
+    if up is not None:
+        tmp = Path(tempfile.gettempdir()) / f"truehit_upload_{abs(hash(up.name)) % 10**8}.csv"
+        tmp.write_bytes(up.getvalue())
+
+        try:
+            desc = ingest.probe(tmp)
+        except Exception as e:
+            st.error(f"could not read that CSV: {e}")
+            st.stop()
+
+        st.markdown(f"**{desc['n_rows']:,} rows, {len(desc['cols'])} columns**")
+        st.dataframe(
+            {"column": desc["cols"], "dtype": [desc["dtypes"][c] for c in desc["cols"]]},
+            use_container_width=True, hide_index=True,
+        )
+
+        if st.button("Ask the model to map it", type="primary"):
+            try:
+                with st.spinner("Reading the columns…"):
+                    raw, spec, hist = agent.onboard(tmp, n_pos=len(r.wt))
+            except RuntimeError as e:
+                st.error(str(e))
+                st.stop()
+            st.session_state["ob"] = (str(tmp), spec, [a.as_dict() for a in hist], len(r.wt))
+
+    ob = st.session_state.get("ob")
+    if ob:
+        path, spec, hist, n_pos = ob
+        st.markdown(f"**{len(hist)} attempt(s)**")
+        for i, a in enumerate(hist, 1):
+            ok = a["ok"]
+            with st.expander(f"Attempt {i} — {'accepted' if ok else 'rejected'}", expanded=ok):
+                if a["spec"]:
+                    st.json(a["spec"])
+                if a["err"]:
+                    st.error(a["err"])
+                if ok:
+                    st.caption(f"{a['n_rows']:,} rows converted")
+
+        if spec is None:
+            st.error(
+                "The model could not produce a usable mapping. The errors above say what it got "
+                "wrong — the column names may be too opaque, or the file may not be per-round "
+                "counts of aligned protein."
+            )
+        else:
+            raw = ingest.apply_spec(path, spec, n_pos=n_pos)
+            rnds = ingest.rnds_of(raw)
+            st.markdown(f"**Rounds, earliest first:** {' -> '.join(rnds)}")
+            if len(rnds) < 3:
+                st.warning(
+                    "Two rounds, so there is no third round to test against. The model will "
+                    "train and rank, but **no honest accuracy number is available from this "
+                    "upload** — a split within one round pair measures the experiment's own "
+                    "quirks, not whether the ranking generalises. Add a later round to get one."
+                )
+            if st.button("Run the pipeline on this upload"):
+                try:
+                    with st.spinner("Enriching, encoding, fitting…"):
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            u = pl.run_upload(raw, camp, lam=lam)
+                except ValueError as e:
+                    st.error(str(e))
+                else:
+                    k = st.columns(4)
+                    k[0].metric("Variants", f"{u.n:,}")
+                    k[1].metric("Train / test", f"{u.n_tr:,} / {u.n_te:,}")
+                    k[2].metric("Features", f"{u.n_feat:,}")
+                    k[3].metric("Substitutions kept", f"{len(u.cf):,}")
+
+                    if u.mode == "cross-round":
+                        m1, m2 = st.columns(2)
+                        m1.metric("Cross-round ROC-AUC", f"{u.auc:.3f}")
+                        m2.metric("Cross-round PR-AUC", f"{u.pr:.3f}")
+                        st.caption(
+                            f"Trained on {u.rnds[1]}/{u.rnds[0]} and tested on "
+                            f"{u.rnds[2]}/{u.rnds[0]} — a later round the model never saw."
+                        )
+                    else:
+                        st.caption(
+                            "No accuracy number is shown as a headline because this upload "
+                            "cannot support one."
+                        )
+                        with st.expander("Within-pair number, which is the weaker check"):
+                            st.write(
+                                f"ROC-AUC {u.auc:.3f}, PR-AUC {u.pr:.3f}, from a split inside "
+                                f"{u.rnds[1]}/{u.rnds[0]}. Not comparable with the cross-round "
+                                "figures elsewhere in this app, and not a measure of whether "
+                                "the ranking generalises to a later round."
+                            )
+
+                    if u.weak:
+                        st.error(
+                            f"**This fit found little signal.** Only {len(u.cf)} substitutions "
+                            f"survived the penalty and the predicted scores span "
+                            f"{u.spread:.3f}, so the ranking below is close to an ordering of "
+                            "noise. Usually too few variants, too few labelled rows, or a "
+                            "slice of a campaign rather than the whole of one."
+                        )
+
+                    st.markdown("**Ranked candidates**")
+                    st.dataframe(u.ranked.head(CFG.top_n), use_container_width=True, hide_index=True)
+                    st.download_button(
+                        "Download full ranking (CSV)",
+                        u.ranked.to_csv(index=False).encode(),
+                        "upload_ranked.csv", "text/csv", key="dl_up",
+                    )

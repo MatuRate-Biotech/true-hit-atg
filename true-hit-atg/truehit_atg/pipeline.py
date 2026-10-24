@@ -134,3 +134,82 @@ def heat(res):
     h = res.cf.pivot_table(index="aa", columns="imgt", values="beta", aggfunc="first")
     order = [p for p in res.imgt if p in h.columns]
     return h.reindex(columns=order)
+
+
+@dataclass
+class UpRes:
+    rnds: list
+    mode: str
+    n: int
+    n_tr: int
+    n_te: int
+    n_feat: int
+    auc: float
+    pr: float
+    ranked: pd.DataFrame
+    cf: pd.DataFrame
+    conv: bool
+    head: pd.DataFrame
+    spread: float = 0.0
+    weak: bool = False
+    imgt: list = field(default_factory=list)
+    wt: str = ""
+    m: object = None
+
+
+# fits an uploaded table. rounds come in earliest first, from the Spec's insertion order.
+# with three rounds the later pair gives an honest cross-round test; with two there is only
+# a within-pair split, which is the weaker check the honest-notes forbid leaning on.
+def run_upload(raw, camp, lam=None):
+    from . import ingest
+
+    rnds = ingest.rnds_of(raw)
+    if len(rnds) < 2:
+        raise ValueError(f"need at least two rounds, the upload has {rnds}")
+    early, late = rnds[0], rnds[1]
+
+    a = ingest.to_internal(raw, (late, early))
+    if len(rnds) >= 3:
+        b, mode = ingest.to_internal(raw, (rnds[2], early)), "cross-round"
+    else:
+        b, mode = a, "within-pair"
+
+    imgt, wt = encode.wt_cols(camp)
+    tr = a[(a[s.SPLIT] == "train") & a[s.ENR_BIN].notna()]
+    te = b[(b[s.SPLIT] == "test") & b[s.ENR_BIN].notna()]
+    if len(tr) < 10 or len(te) < 10:
+        raise ValueError(f"only {len(tr)} train and {len(te)} test rows survive labelling")
+
+    Xtr, nm, _ = encode.encode(tr[s.AA_ALN], imgt=imgt, wt=wt)
+    Xte, _, _ = encode.encode(te[s.AA_ALN], imgt=imgt, wt=wt)
+    m = model.fit(Xtr, tr[s.ENR_BIN], lam=lam)
+
+    Xall, _, _ = encode.encode(a[s.AA_ALN], imgt=imgt, wt=wt)
+    rk = a.copy()
+    rk[PRED] = model.score(m, Xall)
+    rk[CLS] = np.where(rk[PRED] >= 0.5, "enriched", "depleted")
+    cols = [s.VAR, PRED, CLS, s.ENR] + [s.cnt(r) for r in rnds]
+
+    ranked = rk.sort_values(PRED, ascending=False)[cols].reset_index(drop=True)
+    # a near-flat score column means the fit found almost nothing; the ranking is then an
+    # ordering of noise and should not be presented as a result
+    spread = float(ranked[PRED].std())
+    return UpRes(
+        rnds=rnds,
+        mode=mode,
+        spread=spread,
+        weak=bool(spread < 0.02 or len(model.coefs(m, nm)) < 30),
+        n=len(a),
+        n_tr=len(tr),
+        n_te=len(te),
+        n_feat=Xtr.shape[1],
+        auc=model.auc(m, Xte, te[s.ENR_BIN]),
+        pr=model.pr_auc(m, Xte, te[s.ENR_BIN]),
+        ranked=ranked,
+        cf=model.coefs(m, nm),
+        conv=m.conv,
+        head=a.head(8)[[s.VAR, s.AA_ALN] + [s.cnt(r) for r in rnds] + [s.ENR, s.ENR_BIN]],
+        imgt=imgt,
+        wt=wt,
+        m=m,
+    )
