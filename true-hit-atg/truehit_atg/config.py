@@ -28,6 +28,8 @@ class Cfg:
     # default is claude-opus-5-5; swap ai_model if the agent starts guessing badly.
     ai_model: str = "claude-sonnet-5-5"
     ai_key_env: str = "ANTHROPIC_API_KEY"
+    ai_workspace: str = ""
+    ai_workspace_env: str = "ANTHROPIC_WORKSPACE_ID"
     ai_max_tries: int = 3
     ai_max_tokens: int = 8192
     ai_effort: str = "low"

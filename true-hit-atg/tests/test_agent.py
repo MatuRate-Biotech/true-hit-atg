@@ -133,3 +133,37 @@ def test_attempt_serializes_for_the_ui():
     assert json.dumps(d)
     assert d["spec"]["rnds"] == {"MACS": "input_ct", "FACS1": "r1_ct"}
     assert agent.Attempt().as_dict()["spec"] is None
+
+
+class Raising:
+    def __init__(self, exc):
+        self.messages = self
+        self.exc = exc
+
+    def create(self, **kw):
+        raise self.exc
+
+
+def test_unscoped_key_gets_a_sentence_not_a_traceback(src):
+    err = Exception("400 ... must include the anthropic-workspace-id header ...")
+    with pytest.raises(RuntimeError, match="not scoped to a workspace"):
+        agent.ask(ingest.probe(src), 126, client=Raising(err))
+
+
+def test_other_api_errors_are_not_swallowed(src):
+    with pytest.raises(Exception, match="overloaded"):
+        agent.ask(ingest.probe(src), 126, client=Raising(Exception("529 overloaded")))
+
+
+def test_workspace_header_sent_when_configured(src, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "wrkspc_test")
+    cl = FakeClient(GOOD)
+    agent.ask(ingest.probe(src), 126, client=cl)
+    assert cl.calls[0]["extra_headers"] == {"anthropic-workspace-id": "wrkspc_test"}
+
+
+def test_no_workspace_header_when_unset(src, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_WORKSPACE_ID", raising=False)
+    cl = FakeClient(GOOD)
+    agent.ask(ingest.probe(src), 126, client=cl)
+    assert "extra_headers" not in cl.calls[0]

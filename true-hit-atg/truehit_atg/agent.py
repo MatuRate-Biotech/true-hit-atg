@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import asdict, dataclass, field
 
 from . import encode, ingest, schema as s
@@ -98,7 +99,7 @@ def ask(desc, n_pos, hist=(), client=None, model=None, effort=None):
         msgs.append({"role": "assistant", "content": json.dumps(asdict(att.spec)) if att.spec else "{}"})
         msgs.append({"role": "user", "content": f"That was rejected: {att.err}\nTry again."})
 
-    rsp = cl.messages.create(
+    kw = dict(
         model=model or CFG.ai_model,
         max_tokens=CFG.ai_max_tokens,
         system=SYS,
@@ -108,6 +109,21 @@ def ask(desc, n_pos, hist=(), client=None, model=None, effort=None):
             "effort": effort or CFG.ai_effort,
         },
     )
+    # a user-scoped key carries no workspace, and the API rejects the request without this
+    ws = CFG.ai_workspace or os.environ.get(CFG.ai_workspace_env, "")
+    if ws:
+        kw["extra_headers"] = {"anthropic-workspace-id": ws}
+
+    try:
+        rsp = cl.messages.create(**kw)
+    except Exception as e:
+        if "anthropic-workspace-id" in str(e):
+            raise RuntimeError(
+                "this API key is not scoped to a workspace. Set "
+                f"{CFG.ai_workspace_env} to the workspace id — Console, Settings, Workspaces, "
+                "it looks like wrkspc_... — or issue a workspace-scoped key instead."
+            ) from e
+        raise
     txt = next((b.text for b in rsp.content if b.type == "text"), "")
     if not txt.strip():
         raise ValueError("the model returned no text")
