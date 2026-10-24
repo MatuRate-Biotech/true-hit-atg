@@ -542,6 +542,29 @@ as constants inline in analysis code. The L1 penalty strength belongs here too o
 lands. `norm` is declared but unused so far — upstream's `norm_*` columns are already counts per
 million.
 
+### A two-round upload cannot be validated, and the app must say so
+
+Measured 2026-10-24 by running the upload path end to end. Training on Input/R1 and testing on
+the same pair's held-out rows is a **within-pair** split, which section 4 constraint 4 says not
+to trust. Cross-round validation needs a third round:
+
+| Upload | What it can evaluate | AUC |
+|---|---|---|
+| Input + R1 | within-pair only | 0.915 |
+| Input + R1 + R2 | cross-round, the honest one | 0.980 |
+
+The workflow in section 3 takes Input and R1. **So the headline accuracy number is not
+available on the input the app is specified to accept.** The Onboard tab needs two modes: with
+a third round, report the cross-round AUC; with two, give the model and the ranking and say
+plainly that no honest accuracy number is available from this upload. Reporting the within-pair
+0.915 as if it were the cross-round figure would be the exact error the constraint forbids.
+
+Related, measured the same day: the split seed moves test AUC very little — over 8 seeds, AT110
+is 0.956 +/- 0.006 (range 0.945-0.965) and RX002 is 0.951 +/- 0.004 (0.944-0.958). The
+published 0.964 and 0.935 both sit inside those ranges. So the reproduction claim is not a
+lucky draw, but quoting our figures to three decimals overstates their precision; two is
+honest.
+
 ### Stretch, in order, each independently droppable
 
 1. **Upload path.** Accept the public format `{clone id, sequence, count per round}` as CSV and
