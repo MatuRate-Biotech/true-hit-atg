@@ -1,0 +1,67 @@
+import warnings
+
+import pytest
+
+from truehit_atg import pipeline as pl, schema as s
+
+
+@pytest.fixture(scope="module")
+def res():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return pl.run("AT110")
+
+
+def test_fits_and_converges(res):
+    assert res.conv
+    assert res.n_feat == 2520
+    assert res.n_tr > 3000 and res.n_te > 800
+
+
+def test_beats_sequence_baseline(res):
+    assert res.auc_te > 0.9
+    assert res.auc_te > res.auc_nmut + 0.1
+
+
+def test_strict_auc_close_to_reported(res):
+    assert res.n_strict > 100
+    assert abs(res.auc_te - res.auc_strict) < 0.05
+
+
+def test_coefs_are_sparse_and_named(res):
+    assert 50 < len(res.cf) < 400
+    assert res.cf["beta"].abs().is_monotonic_decreasing
+    assert set(res.cf.columns) >= {"feat", "beta", "imgt", "aa"}
+
+
+def test_ranked_never_says_affinity(res):
+    for c in res.ranked.columns:
+        assert "affinity" not in c.lower() and "binding" not in c.lower()
+
+
+def test_parent_encodes_and_scores(res):
+    out, unk = pl.score_seqs(res, [res.wt])
+    assert unk == 0
+    assert out.loc[0, "n_sub"] == 0
+    assert 0.0 <= out.loc[0, pl.PRED] <= 1.0
+
+
+def test_score_seqs_rejects_wrong_length(res):
+    with pytest.raises(ValueError, match="aligned input only"):
+        pl.score_seqs(res, [res.wt[:-3]])
+
+
+def test_score_seqs_rejects_empty(res):
+    with pytest.raises(ValueError, match="no sequences"):
+        pl.score_seqs(res, ["", "   "])
+
+
+def test_bad_pair_rejected():
+    with pytest.raises(ValueError, match="no round pair"):
+        pl.run("AT110", train=("FACS3", "MACS"))
+
+
+def test_heat_covers_only_hit_positions(res):
+    h = pl.heat(res)
+    assert h.shape[1] == res.cf["imgt"].nunique()
+    assert list(h.columns) == [p for p in res.imgt if p in set(res.cf["imgt"])]

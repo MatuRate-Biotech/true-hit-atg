@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# vendored upstream data: keep byte-identical to the pinned commit, and never diff 30 MB
+*.csv binary
