@@ -311,6 +311,22 @@ The mechanism: 88% of *enriched* test rows have a MACS count of exactly 0, again
 appearance produces a large positive ratio. "Enriched" therefore means, to a first
 approximation, "was not seen in the input round".
 
+**The margin over the fair baseline is campaign-dependent. Measured 2026-10-24:**
+
+| Campaign | model | substitutions from parent | margin | observed counts (circular) |
+|---|---|---|---|---|
+| AT110 | 0.960 | 0.752 | **+0.208** | 0.989 |
+| RX002 | 0.952 | 0.933 | **+0.019** | 0.962 |
+
+On RX002 counting substitutions from the parent gets 0.933 on its own, so the model adds almost
+nothing over it. AT110 is the campaign where the learned model clearly earns its place, and it
+is the one to lead with for that claim. If RX002 is on screen — and it will be, if the affinity
+validation happens — **do not repeat the AT110 margin**; the honest line there is that the model
+matches a simple mutation-count heuristic, and its value is scoring unsequenced clones rather
+than out-ranking that heuristic. Worth understanding why before the pitch: RX002 variants carry
+more substitutions on average (4.9 against AT110's 3.5, max 67 against 35), so mutation load
+alone separates its classes better.
+
 Two consequences, both load-bearing for the pitch:
 
 1. **Never claim to beat enrichment ranking.** State the fair comparison, which is sequence-only:
@@ -397,14 +413,17 @@ scoring sequences the campaign never contained.
 
 Against every figure the paper publishes for this model, measured 2026-10-24:
 
-| Campaign | ours ROC | paper ROC | ours PR | paper PR |
-|---|---|---|---|---|
-| AT110 | 0.960 | 0.964 | 0.942 | 0.949 |
-| RX002 | 0.952 | 0.935 | 0.952 | 0.947 |
+| Campaign | Train -> test | ours ROC | paper ROC | ours PR | paper PR |
+|---|---|---|---|---|---|
+| AT110 | FACS1/MACS -> FACS2/MACS | 0.960 | 0.964 | 0.942 | 0.949 |
+| RX002 | FACS1/MACS -> FACS2/MACS | 0.952 | 0.935 | 0.952 | 0.947 |
 
-Four independent numbers, largest gap 0.017. Both campaigns and both metrics are asserted by
-the suite, so the reproduction claim no longer rests on a single figure. Upstream's CNN sits at
-0.938 on the AT110 rows, which is a side reference rather than the comparison.
+All four reproduce within 0.017, and the suite asserts all four.
+
+A number landing above the published one is not evidence of a better model — it is a
+methodological difference, most likely our 99.4% label agreement or a sklearn version. Do not
+present it as anything else; section 4 applies. Upstream's CNN sits at 0.938 on the AT110 rows,
+a side reference rather than the comparison.
 
 No logistic `Test_scores.csv` ships upstream — only CNN and MLP ones — so the coefficient diff
 is the comparison for our model, and their CNN score file is the separate reference point.
