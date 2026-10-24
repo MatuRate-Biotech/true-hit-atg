@@ -203,10 +203,15 @@ numbers; read that file. The essentials:
   a model there scores well by predicting "enriched" for everything.
 - **No raw FASTQ ships** (upstream says too large), so an align-and-count front end has no input
   here. This is also why the workflow assumes pre-aligned input.
-- **No measured affinities ship** anywhere in the download. Their ESM2 script references an
-  `AT1R_affinity` dataset that is not in the repo, so validating a ranking against measured
-  binding needs numbers from the paper's supplement. That feature is blocked until someone finds
-  them.
+- **No measured affinities ship in the download**, but they exist in the paper. Their ESM2 script
+  references an `AT1R_affinity` dataset not present in the repo. The paper reports measurements
+  in two places, both **RX002**: single substitutions measured by biolayer interferometry in
+  **Supp Table 4** and Supp Fig 9 (9 of 11 improved, 7 by at least tenfold), and designed
+  higher-order variants measured by SPR in **Figure 5A** (58 of 90 measured, 32 failed to
+  express, best K_D 0.18 nM with three sub-nanomolar). So validation is **not blocked on
+  existence, only on transcription**: pull Supp Table 4 from the preprint and RX002 becomes the
+  campaign for a real non-circular check. That the measurements are RX002 is also why RX002, not
+  AT110, is the campaign to use if this feature is attempted.
 
 ### Mapping the workflow's round names onto this dataset
 
@@ -217,12 +222,18 @@ The workflow says Input / R1 / R2 / R3. In the vendored data that reads: Input �
 testing. That is upstream's own experiment — their directories are literally
 `Train_FACS1_MACS_enriched/Test_FACS2_MACS_enriched`.
 
-**Do not build on FACS3.** Only NbB7 has one, its `FACS3/*` labels are 85–96% positive, and
-nothing in the upstream repo says what that round selected for — there is not one mention of
-polyreactivity, polyspecificity or counter-selection anywhere in its code, notebooks or protocol.
-If FACS3 is a counter-selection rather than a deeper binding round, as the paper text appears to
-describe, then **no campaign here has a third binding round** and "validate on R3" should not be
-said at all. Say "a later round" and mean FACS2.
+**Do not build on FACS3. Settled by the paper on 2026-10-24.** Only NbB7 has one and its
+`FACS3/*` labels are 85–96% positive. The upstream repo never says what that round selected for,
+but the paper does: they performed a third FACS sort that included a **polyreactivity
+counter-selection** alongside the affinity selection, using a polyspecificity reagent made from
+Sf9 insect cell membranes. So FACS3 is a counter-selection, not a deeper binding round,
+**no campaign here has a third binding round**, and "validate on R3" must not be said at all.
+Say "a later round" and mean FACS2.
+
+Two follow-ons from that. The paper reports cysteine enrichment driven by polyreactivity in B7,
+which FACS3 and a polyreactivity filter were introduced to address, so the degenerate labels are
+explained rather than merely odd. And FACS3 screens for **stickiness, not growth**, so it does
+not serve as the control arm for the growth-versus-binding extension in question 10.
 
 ### The exact enrichment recipe, verified
 
@@ -289,6 +300,7 @@ baseline reads, so the counts predict the label almost perfectly without any lea
 |---|---|
 | MACS count alone, negated | 0.998 |
 | Early-pair log ratio | 0.989 |
+| **The paper's own L1 logistic, AT110, as published** | **0.964** |
 | **Our L1 logistic, sequence only** | **0.960** |
 | Upstream's CNN, sequence only, same rows | 0.938 |
 | Substitutions from parent, sequence only | 0.752 |
@@ -308,6 +320,20 @@ Two consequences, both load-bearing for the pitch:
    sequenced. The model needs no counts, so it scores clones the experiment never contained —
    which is exactly the distinctive feature.
 
+**The paper states this confound itself, so stop treating it as our discovery or our weak spot.**
+Read on 2026-10-24: the authors write that the enrichment labels are highly bimodal and *mostly
+reflect whether the sequence was seen before or after enrichment*. They then check it the same
+way we do, against distance baselines, and conclude the models learn affinity-related signal
+rather than round membership. Our `auc_nmut` at 0.752 is that control. The paper also notes the
+imputed floor abundance of 1e-6 for sequences under the 5-count threshold, which is the same
+1 CPM pseudocount already implemented, and that most sequences appear in only one round
+(their Supp Table 2).
+
+So the framing for a judge is: this is a known, stated property of the method, here is the
+control the authors used, here is our number for that control. That is stronger than volunteering
+it as a flaw. The paper additionally flags two confounds we do not currently handle: high
+expression clones can dominate FACS2 counts, and polyreactivity drove cysteine enrichment in B7.
+
 ### Feature menu, with status
 
 | Feature | Status | Note |
@@ -323,7 +349,7 @@ Two consequences, both load-bearing for the pitch:
 | 2D landscape map | open | striking but purely presentational; does not improve the model |
 | Developability / polyreactivity filter | open | real-world credibility, mostly rule-based, but a pretrained model already exists |
 | Alignment layer | open | the thing that makes uploads general; adds an HMMER dependency |
-| Validation vs. measured affinities | **blocked** | affinities are not in the download |
+| Validation vs. measured affinities | **unblocked, needs transcription** | not in the download, but in the paper: RX002 BLI singles in Supp Table 4, SPR designs in Fig 5A. Switch campaign to RX002 for this |
 | Align + count from raw FASTQ | **blocked** | no raw FASTQ ships, and input is assumed pre-aligned |
 | CNN / novel sequence design | **cut** | logistic regression only; generation is replaced by scoring externally designed candidates |
 
@@ -367,11 +393,24 @@ scoring sequences the campaign never contained.
 | Log ratios vs shipped | max error 7e-16 |
 | GMM labels vs shipped | 99.4% agreement, 3,853 labelled against 3,866 |
 | Coefficients vs upstream's shipped logistic params | 101 of ~132 shared, **sign agreement 1.000, Pearson r 0.983** |
-| AT110 test AUC | 0.960, against upstream's CNN at 0.938 on the same rows |
+| AT110 test AUC | 0.960, against **the paper's published 0.964** for the same model, and upstream's CNN at 0.938 on the same rows |
 | Strict AUC, rows never seen in training | 0.958 over 384 rows, so the split overlap was not inflating anything |
 
 No logistic `Test_scores.csv` ships upstream — only CNN and MLP ones — so the coefficient diff
 is the comparison for our model, and their CNN score file is the separate reference point.
+
+**The paper's Table 1 is now the headline comparison, not the CNN.** It reports L1 logistic at
+ROC-AUC 0.964 and PR-AUC 0.949 on AT110, and 0.935 / 0.947 on RX002. Our 0.960 reproduces the
+published AT110 figure to within 0.004, which is a far stronger claim than beating their CNN, and
+RX002 gives a second checkable number worth running. The paper also compared linear regression,
+a CNN, an **ESM2-MLP**, and two distance baselines (distance to WT and median MACS distance).
+Their Spearman figures on the regression task are CNN 0.695 on AT110 and 0.744 on B7, and linear
+regression 0.709 on RX002.
+
+**The ESM2-MLP performed sub-optimally in their hands.** That closes the question of swapping
+one-hot for protein language model embeddings: it has been tried on this exact data and it did
+not help. Note this does not touch using a PLM to *propose* candidate sequences that our model
+then scores, which is a different use and still open.
 
 ### The handoff contract
 
@@ -499,10 +538,10 @@ Settle with Jessica. Several have moved since the proposal; the resolved ones ar
    is the balanced alternative. Still worth her view before the pitch.
 3. Which round pair to train and test on. **Settled: train FACS1/MACS, test FACS2/MACS**, which
    is upstream's own experiment. FACS3 is out — see section 5.
-4. **What FACS3 actually selected for in NbB7.** The upstream repo never says, and its labels are
-   degenerate. Jessica or the paper text can settle whether it is a polyspecificity
-   counter-selection. Nothing in the plan depends on the answer; it matters only for whether we
-   can ever say "R3".
+4. **What FACS3 actually selected for in NbB7. Resolved 2026-10-24 from the paper:** a
+   polyreactivity counter-selection run alongside the affinity selection, using a polyspecificity
+   reagent made from Sf9 insect cell membranes. So it is not a third binding round, "R3" stays
+   out of the vocabulary, and the degenerate labels have an explanation. See section 5.
 5. **What counts as an ultra-low count** for the drop step. **Mostly settled by reading their
    code:** `hasread` is exactly `count >= 5` per round, confirmed against every round of every
    campaign, and the abundance floor is 1 CPM. Both are in `CFG` as `fil_cnt` and `cpm_floor`.
@@ -519,7 +558,10 @@ Settle with Jessica. Several have moved since the proposal; the resolved ones ar
 9. Whether the CNN is cut. **Resolved: cut for good**, per Pratham on 2026-10-23. Logistic
    regression only.
 10. Whether a no-target or counter-selection arm can carry the growth-versus-binding extension.
-    If NbB7's FACS3 is that counter-selection, it may already serve — but see question 4.
+    **Narrowed by question 4: NbB7's FACS3 will not serve.** It is a polyreactivity
+    counter-selection, so it screens stickiness rather than growth rate, and nothing in this
+    dataset isolates replication advantage. If the extension is wanted, it needs either a
+    different dataset or an explicit model term, not a control arm from here.
 11. **Where the outside clones for the demo's distinctive beat come from.** The feature works,
     but it is currently demonstrated on the parent sequence, which is not a compelling example.
     Options: a held-out slice of the same campaign, known optimizing substitutions from the
@@ -528,10 +570,13 @@ Settle with Jessica. Several have moved since the proposal; the resolved ones ar
     sequences we paste in.
 12. **What counts as the MVP being done.** **Answered by building it:** the paper runs end to
     end in an app, reproduced against their coefficients. The remaining scope is all stretch.
-13. **The label confound.** 88% of enriched rows have an input count of exactly zero
-    (section 6). Worth Jessica's read: is "absent from the input round, present later" a real
-    selection signal, a sampling artefact at this depth, or both? It does not block anything,
-    but it is the sharpest question a judge could ask and she is the one who can answer it.
+13. **The label confound. Largely resolved 2026-10-24 from the paper.** The authors state the
+    labels are highly bimodal and mostly reflect whether a sequence was seen before or after
+    enrichment, and they control for it against distance baselines, concluding the models learn
+    affinity-related signal rather than round membership. Our `auc_nmut` at 0.752 is that
+    control. Still worth Jessica's read on the biology of "absent from input, present later",
+    and on the two confounds the paper raises that we do not handle: high expression clones
+    dominating FACS2 counts, and polyreactivity-driven cysteine enrichment. See section 6.
 14. Who owns integration between the two workstreams — currently nobody, and `true-hit-qc/` is
     parked.
 
@@ -539,7 +584,12 @@ Settle with Jessica. Several have moved since the proposal; the resolved ones ar
 
 ## 10. Sources
 
-- Dataset and reference method, Paul et al. (2026):
+- The paper itself, Paul et al. (2026), *Machine learning enables efficient and effective
+  affinity maturation of nanobodies*:
+  https://www.biorxiv.org/content/10.64898/2026.01.11.698911.full.pdf
+  Read on 2026-10-24 for FACS3, the label confound, published AUCs and the measured affinities.
+  Table 1 has the model comparison; Supp Table 4 and Figure 5A have the affinity measurements.
+- Dataset and reference code for that paper:
   https://github.com/debbiemarkslab/ML_affinity_maturation
   Note: this repo does not `git checkout` on Windows — it contains a file named
   `Test ROC: FACS2_MACS_logratio.pdf` and the colon is illegal. Read its tree from git objects,
