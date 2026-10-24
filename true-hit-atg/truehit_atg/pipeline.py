@@ -22,6 +22,7 @@ class Res:
     n_feat: int
     auc_tr: float
     auc_te: float
+    pr_te: float
     auc_strict: float
     n_strict: int
     auc_nmut: float
@@ -87,6 +88,7 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
         n_feat=Xtr.shape[1],
         auc_tr=model.auc(m, Xtr, tr[s.ENR_BIN]),
         auc_te=model.auc(m, Xte, te[s.ENR_BIN]),
+        pr_te=model.pr_auc(m, Xte, te[s.ENR_BIN]),
         auc_strict=auc_st,
         n_strict=int(keep.sum()),
         auc_nmut=auc_nm,

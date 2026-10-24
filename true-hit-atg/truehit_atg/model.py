@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve
 
 from .config import CFG
 
@@ -31,6 +31,13 @@ def auc(m, X, y):
     if len(np.unique(y)) < 2:
         return float("nan")
     return float(roc_auc_score(y, score(m, X)))
+
+
+def pr_auc(m, X, y):
+    y = np.asarray(y).astype(int)
+    if len(np.unique(y)) < 2:
+        return float("nan")
+    return float(average_precision_score(y, score(m, X)))
 
 
 def roc(m, X, y):

@@ -79,6 +79,53 @@ def pairs(camp):
     return [(r[j], r[i]) for i in range(len(r)) for j in range(i + 1, len(r))]
 
 
+RAW_CORE = (VAR, AA_ALN)
+
+
+# the contract for an upload, which sits upstream of enrichment: no enr, enr_bin, split or
+# norm_* yet, because enrich.py computes those. names offenders rather than coercing.
+def chk_raw(df, rnds, n_pos=None, alph=None):
+    miss = [c for c in RAW_CORE if c not in df.columns]
+    if miss:
+        raise ValueError(f"upload missing: {miss}")
+    have = [r for r in rnds if cnt(r) in df.columns]
+    if len(have) < 2:
+        raise ValueError(
+            f"need counts for at least two rounds, found {len(have)}; "
+            f"expected some of {[cnt(r) for r in rnds]}"
+        )
+    if df[VAR].duplicated().any():
+        raise ValueError(f"duplicate var_id: {df.loc[df[VAR].duplicated(), VAR].head(5).tolist()}")
+
+    w = df[AA_ALN].str.len()
+    exp = n_pos if n_pos is not None else (int(w.iloc[0]) if len(w) else 0)
+    if not w.eq(exp).all():
+        bad = df.loc[w != exp, VAR].head(5).tolist()
+        raise ValueError(
+            f"aa_aln must be {exp} long for every row, found widths {sorted(w.unique())}; "
+            f"first offenders: {bad}. one-hot columns only line up on equal-length input, "
+            f"so padding or trimming here would scramble positions"
+        )
+
+    if alph:
+        ok = set(alph)
+        bad = [v for v, q in zip(df[VAR], df[AA_ALN]) if set(q) - ok][:5]
+        if bad:
+            sym = sorted({c for q in df[AA_ALN] for c in q} - ok)
+            raise ValueError(f"unknown symbols {sym} in aa_aln; first offenders: {bad}")
+
+    for r in have:
+        col = df[cnt(r)]
+        if col.dtype.kind not in "iu":
+            raise ValueError(f"{cnt(r)} must be whole numbers, got dtype {col.dtype}")
+        if (col < 0).any():
+            raise ValueError(
+                f"{cnt(r)} has negative counts; first offenders: "
+                f"{df.loc[col < 0, VAR].head(5).tolist()}"
+            )
+    return df
+
+
 def chk(df, rnds, n_pos=None):
     want = list(CORE) + [c for r in rnds for c in (cnt(r), norm(r), has(r))]
     miss = [c for c in want if c not in df.columns]

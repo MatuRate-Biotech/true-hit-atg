@@ -140,7 +140,7 @@ reviewable.
 Add to `Cfg` in `config.py`:
 
 ```python
-ai_model: str = "claude-sonnet-4-5"
+ai_model: str = "claude-sonnet-5-5"
 ai_key_env: str = "ANTHROPIC_API_KEY"
 ai_max_tries: int = 3
 ai_timeout: int = 60
@@ -341,8 +341,10 @@ install. If torch is already working, swapping 7 and 8 earlier is reasonable.
 
 - Do not reimplement the enrichment recipe inside the upload path. It is verified at 99.4%
   against upstream and there is one copy of it.
-- Do not swap one-hot for ESM embeddings. The model is at 0.960 against their CNN's 0.938; this
-  is not the weak point and the dependency cost is not worth a marginal AUC change.
+- Do not swap one-hot for ESM embeddings. The reason is not the CNN comparison: it is that the
+  paper tried an **ESM2-MLP on this exact data and it underperformed** (`context.md` section 7).
+  The dependency cost buys a marginal AUC change at best. This does not touch using a PLM to
+  *propose* candidates that our model then scores, which is Feature B.
 - Do not let the agent touch `enrich.py`, `encode.py` or `model.py`. It writes a `Spec`, nothing
   more.
 - Do not add a CNN. It is cut, per 2026-10-23.

@@ -393,8 +393,18 @@ scoring sequences the campaign never contained.
 | Log ratios vs shipped | max error 7e-16 |
 | GMM labels vs shipped | 99.4% agreement, 3,853 labelled against 3,866 |
 | Coefficients vs upstream's shipped logistic params | 101 of ~132 shared, **sign agreement 1.000, Pearson r 0.983** |
-| AT110 test AUC | 0.960, against **the paper's published 0.964** for the same model, and upstream's CNN at 0.938 on the same rows |
 | Strict AUC, rows never seen in training | 0.958 over 384 rows, so the split overlap was not inflating anything |
+
+Against every figure the paper publishes for this model, measured 2026-10-24:
+
+| Campaign | ours ROC | paper ROC | ours PR | paper PR |
+|---|---|---|---|---|
+| AT110 | 0.960 | 0.964 | 0.942 | 0.949 |
+| RX002 | 0.952 | 0.935 | 0.952 | 0.947 |
+
+Four independent numbers, largest gap 0.017. Both campaigns and both metrics are asserted by
+the suite, so the reproduction claim no longer rests on a single figure. Upstream's CNN sits at
+0.938 on the AT110 rows, which is a side reference rather than the comparison.
 
 No logistic `Test_scores.csv` ships upstream — only CNN and MLP ones — so the coefficient diff
 is the comparison for our model, and their CNN score file is the separate reference point.
@@ -411,6 +421,24 @@ regression 0.709 on RX002.
 one-hot for protein language model embeddings: it has been tried on this exact data and it did
 not help. Note this does not touch using a PLM to *propose* candidate sequences that our model
 then scores, which is a different use and still open.
+
+### The parent carries no gaps in model space
+
+Checked 2026-10-24, and it corrects a premise in `plan-ai-features.md` B1. That plan quotes
+`wt_seq('AT110')` as `QVQLQESGG-GLVQAGG...` and concludes gaps sit in the middle of the
+sequence the model sees. They do not. `wt_seq()` returns the **135-column full ANARCI
+alignment**; the model's feature space is `encode.wt_cols()`, the 126 retained columns, and the
+parent has **zero gaps** there in all three campaigns.
+
+Variants do carry gaps — 3.1% of AT110, 56.8% of NbB7, 0.8% of RX002 — so the encoder's 21st
+symbol is earning its place. But for candidates built by substituting into the parent,
+`gap_map` is the identity and `place` is a plain splice, so the position-shifting hazard that
+plan feared does not arise on that path. Both functions are still implemented for the general
+case, since an uploaded campaign's parent may carry a gap in a retained column.
+
+`encode.place()` validates its residue against a **set**, not the alphabet string: `"VW"` and
+`""` are both substrings of `"ACDEFGHIKLMNPQRSTVWY"`, so string membership would have accepted
+them and silently changed the sequence width. A test covers it.
 
 ### The handoff contract
 

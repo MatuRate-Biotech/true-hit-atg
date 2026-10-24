@@ -17,6 +17,13 @@ def get_run(camp, tp, sp, lam, min_ct):
         return pl.run(camp, train=tp, test=sp, lam=lam, min_ct=min_ct)
 
 
+# paul et al. table 1, L1 logistic, for the round pairs they published
+PUB = {
+    ("AT110", ("FACS1", "MACS"), ("FACS2", "MACS")): (0.964, 0.949),
+    ("RX002", ("FACS1", "MACS"), ("FACS2", "MACS")): (0.935, 0.947),
+}
+
+
 def pair_lab(p):
     return f"{p[0]} / {p[1]}"
 
@@ -97,11 +104,19 @@ with t1:
 
 with t2:
     st.subheader(f"Trained on {pair_lab(tp)}, tested on {pair_lab(sp)}")
-    k = st.columns(4)
-    k[0].metric("Test AUC", f"{r.auc_te:.3f}")
-    k[1].metric("Strict test AUC", f"{r.auc_strict:.3f}", help=f"{r.n_strict:,} rows never seen in training")
-    k[2].metric("Train AUC", f"{r.auc_tr:.3f}")
-    k[3].metric("Features", f"{r.n_feat:,}")
+    k = st.columns(5)
+    k[0].metric("Test ROC-AUC", f"{r.auc_te:.3f}")
+    k[1].metric("Test PR-AUC", f"{r.pr_te:.3f}")
+    k[2].metric("Strict ROC-AUC", f"{r.auc_strict:.3f}", help=f"{r.n_strict:,} rows never seen in training")
+    k[3].metric("Train ROC-AUC", f"{r.auc_tr:.3f}")
+    k[4].metric("Features", f"{r.n_feat:,}")
+
+    pub = PUB.get((camp, tp, sp))
+    if pub:
+        st.caption(
+            f"The paper's Table 1 reports ROC-AUC {pub[0]:.3f} and PR-AUC {pub[1]:.3f} for this "
+            f"same model on {camp}. Ours are {r.auc_te:.3f} and {r.pr_te:.3f}."
+        )
 
     st.markdown("**Against baselines**")
     b = st.columns(2)

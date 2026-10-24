@@ -65,3 +65,17 @@ def test_heat_covers_only_hit_positions(res):
     h = pl.heat(res)
     assert h.shape[1] == res.cf["imgt"].nunique()
     assert list(h.columns) == [p for p in res.imgt if p in set(res.cf["imgt"])]
+
+
+# paul et al. table 1, L1 logistic, train FACS1/MACS and test FACS2/MACS
+PUB = {"AT110": (0.964, 0.949), "RX002": (0.935, 0.947)}
+
+
+@pytest.mark.parametrize("camp", list(PUB))
+def test_matches_published_numbers(camp):
+    roc, pr = PUB[camp]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        r = pl.run(camp)
+    assert abs(r.auc_te - roc) < 0.03, f"{camp} ROC {r.auc_te:.3f} vs published {roc}"
+    assert abs(r.pr_te - pr) < 0.03, f"{camp} PR {r.pr_te:.3f} vs published {pr}"

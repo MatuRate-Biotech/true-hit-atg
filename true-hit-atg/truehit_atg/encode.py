@@ -5,6 +5,7 @@ from . import data
 AAS = "ACDEFGHIKLMNPQRSTVWY"
 GAP = "-"
 ALPH = AAS + GAP
+AA_SET = frozenset(AAS)
 D = len(ALPH)
 IDX = {a: i for i, a in enumerate(ALPH)}
 GAP_I = IDX[GAP]
@@ -65,3 +66,27 @@ def encode(seqs, camp=None, imgt=None, wt=None):
             f"they must match for one-hot columns to mean the same thing"
         )
     return X[:, keep], nm, unk
+
+
+# the parent in model space has no gaps in any of the three campaigns, so for proposals built
+# by substituting into it these two are the identity and a plain splice. they exist for the
+# general case: an uploaded campaign whose parent does carry a gap in a retained column.
+def gap_map(ref):
+    ung, idx = [], []
+    for i, a in enumerate(ref):
+        if a != GAP:
+            ung.append(a)
+            idx.append(i)
+    return "".join(ung), idx
+
+
+def place(ref, pos, aa):
+    _, idx = gap_map(ref)
+    if not 0 <= pos < len(idx):
+        raise ValueError(f"ungapped position {pos} out of range 0..{len(idx) - 1}")
+    # membership against the string would accept "" and any substring such as "VW",
+    # either of which changes the width and shifts every position after it
+    if aa not in AA_SET:
+        raise ValueError(f"{aa!r} is not one of the 20 amino acids")
+    i = idx[pos]
+    return ref[:i] + aa + ref[i + 1 :]
