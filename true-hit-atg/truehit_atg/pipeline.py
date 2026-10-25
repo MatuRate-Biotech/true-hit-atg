@@ -100,7 +100,8 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
     rk = a.copy()
     rk[PRED] = model.score(m, Xall)
     rk[CLS] = np.where(rk[PRED] >= 0.5, "enriched", "depleted")
-    cols = [s.VAR, PRED, CLS, s.CDR3, s.ENR, s.cnt(tp[1]), s.cnt(tp[0])]
+    # aa_aln rides along so a downloaded ranking carries the sequence; the tab does not show it
+    cols = [s.VAR, PRED, CLS, s.SPLIT, s.CDR3, s.ENR, s.cnt(tp[1]), s.cnt(tp[0]), s.AA_ALN]
     ranked = rk.sort_values(PRED, ascending=False)[cols].reset_index(drop=True)
 
     return Res(
@@ -221,7 +222,7 @@ def run_upload(raw, camp=None, parent=None, lam=None, name=None):
     rk = a.copy()
     rk[PRED] = model.score(m, Xall)
     rk[CLS] = np.where(rk[PRED] >= 0.5, "enriched", "depleted")
-    cols = [s.VAR, PRED, CLS, s.ENR] + [s.cnt(r) for r in rnds]
+    cols = [s.VAR, PRED, CLS, s.SPLIT, s.ENR] + [s.cnt(r) for r in rnds] + [s.AA_ALN]
 
     ranked = rk.sort_values(PRED, ascending=False)[cols].reset_index(drop=True)
     cf = with_sub(model.coefs(m, nm), imgt, wt)

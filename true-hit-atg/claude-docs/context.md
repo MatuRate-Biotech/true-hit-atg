@@ -889,10 +889,92 @@ positions are decisive, because the campaigns differ there:
 AT110's own table has `A36V` at that position, so the two campaigns visibly disagree where they
 should.
 
+### The Candidates tab says what its columns hold
+
+Same problem as the coefficient table: the tab rendered `r.ranked` straight, so its headers were
+`var_id`, `pred_enr`, `pred_cls`, `enr` and `cnt_*`. Two of those read almost identically and
+mean different things. The ranking, the model and the row order are untouched throughout.
+
+| Field | Displayed as |
+|---|---|
+| — | Rank |
+| `aa_aln` | Substitutions, via the shared `subs()` helper at its default cap of 10 |
+| `split` | Data split, in plain words |
+| `pred_enr` | Predicted enrichment |
+| `pred_cls` | Model call |
+| `enr` | Measured enrichment |
+| `cnt_<round>` | Reads, Input / Reads, Output 1 |
+| `var_id`, `cdr3` | dropped from the display, kept in the CSV |
+
+#### A downloaded ranking has to be actionable
+
+The download previously emitted `r.ranked` raw and **carried no sequence column at all**, so a
+downloaded ranking could not be traced back to a clone and ordered. `s.AA_ALN` now rides along in
+the `cols` list that builds `ranked`, in both `run()` and `run_upload()`, and a cached
+`rank_csv()` beside `enr_csv()` writes everything the display drops: the upstream row label, the
+**untruncated** substitution list, CDR3, the sequence, and the raw `split` value.
+
+Raw values, not display words, for `split` in the CSV — it joins back to `r.tbl`. That matches
+what was already there: "Row label" is a friendly header over a raw `var_id`. CDR3 is written
+only when the column exists, which is the vendored campaigns; `ingest` fills it with `""` when an
+upload lacks it, and an all-blank column is noise.
+
+Measured on the real downloaded file, AT110 FACS1/MACS: 4,067 rows, Rank contiguous 1..4,067,
+every sequence 126 wide, CDR3 on every row, zero cells containing `+N more`.
+
+#### Rank, and why it is computed before the filter
+
+`pred_enr` saturates. At four decimal places the top rows read 0.9998, 0.9997, 0.9997, 0.9996,
+0.9996, and the ties are real rather than a rounding artefact — the model has no per-variant
+parameters, so two variants with the same substitution set get byte-identical scores. Measured on
+AT110:
+
+| | |
+|---|---|
+| Distinct values at 4dp in the top 50 | 25 of 50 |
+| Rows sharing a score with an earlier row | 2,842 of 4,067 |
+| Largest single 4dp collision | 1,103 rows |
+
+Rank is the row's place in the **whole** ranking, computed before the split filter is applied, so
+narrowing to out-of-sample rows shows how far down they sit instead of renumbering from 1.
+Filtering AT110 to held-out plus not-labelled gives ranks 1, 2, 5, 9, 10 — information that
+renumbering would destroy.
+
+**Rank asserts an ordering the scores do not support inside a tie block.** Rank 1,200 against
+rank 1,800 can be an arbitrary tiebreak within a 1,103-row group. Nothing on the tab says so.
+
+#### Every row is scored, including the rows the model was fitted on
+
+`pred_enr` comes from encoding every row and scoring it, training rows included. Of 4,067 AT110
+candidates: 3,082 seen in training (76%), 771 held out (19%), 214 never labelled (5%). The
+ranking is not wrong — 133 substitution weights and no per-variant parameters, and the
+train/held-out gap is 0.017 (0.938 against 0.922) — but the tab gave no way to tell which scores
+were out of sample.
+
+`s.SPLIT` is carried through into `ranked` and shown as **Data split**: `train` -> seen in
+training, `test` -> held out, and unset -> not labelled. The unset value is `NaN`, not a literal
+`"unset"`, so the mapping fills it. A multiselect filters the table by it, defaulting to all
+three; multiselect rather than a hide-training checkbox because it can isolate the never-labelled
+group on its own.
+
+**The last two categories are not the same thing and the caption must not blur them.** Held-out
+rows were not used to fit the model but were used to compute the accuracy figures on the Model
+tab. Not-labelled rows were used for neither: enrichment could not be called from their counts at
+all, so they are the candidates only the model can rank.
+
+That last clause is advocacy by the section 4 rule and was left out on the first pass; it is in
+the caption because it was asked for explicitly, as an exception. The rule still holds elsewhere.
+
+Worth it for the demo, not just for correctness: of the top 50 AT110 candidates, 20 were seen in
+training, 5 were held out and **25 were never labelled**. Filtering to out-of-sample leaves 985
+rows (771 + 214), confirmed from the downloaded CSV.
+
 #### Known, not fixed
 
-- `pred_enr` saturates: the top of an 18k ranking is 0.99999999995 and up, which Streamlit
-  renders as a bare `1`, so the visible top of the Candidates table shows no ordering.
+- Rank states a strict order inside tie blocks that the scores do not support, and the tab
+  does not say so.
+- The Candidates tab never states how many candidates match the split filter. Narrowing
+  4,067 to 985 is invisible: the reader sees the first 50 and the slider caps at 500.
 - The Onboard tab keeps its own "Run the pipeline on this upload" button, a second route to the
   same result as the sidebar. Same figures, confusing seam.
 

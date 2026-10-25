@@ -88,6 +88,42 @@ def enr_csv(_rr, _order, _tp, key):
     return out.to_csv(index=False).encode()
 
 
+# every row in the ranking is scored, including the rows the model was fitted on. the split
+# column says which is which; unset means the mixture could not call enrichment from the counts.
+SPLIT_LAB = {"train": "seen in training", "test": "held out"}
+NOT_LAB = "not labelled"
+SPLITS = list(SPLIT_LAB.values()) + [NOT_LAB]
+
+
+def split_lab(col):
+    return col.map(SPLIT_LAB).fillna(NOT_LAB)
+
+
+# the ranking as downloaded keeps every field the tab drops, so a row can be traced back to a
+# clone and ordered: the upstream label, the full substitution list, CDR3 and the sequence.
+@st.cache_data(show_spinner=False)
+def rank_csv(_rr, _order, key):
+    d = _rr.ranked
+    cnt = [s.cnt(rr) for rr in _order if s.cnt(rr) in d.columns]
+    out = cnt_cols(d[[pl.PRED, pl.CLS, s.ENR] + cnt], _order).rename(
+        columns={
+            pl.PRED: "Predicted enrichment",
+            pl.CLS: "Model call",
+            s.ENR: "Measured enrichment",
+        }
+    )
+    # the raw value here, not the display words: a downloaded ranking joins back to the table
+    out["Data split"] = d[s.SPLIT].values
+    out.insert(0, "Substitutions", [subs(q, _rr.wt, _rr.imgt, cap=None) for q in d[s.AA_ALN]])
+    out.insert(0, "Row label", d[s.VAR].values)
+    # a downloaded ranking gets re-sorted in a spreadsheet, which loses the order entirely
+    out.insert(0, "Rank", np.arange(1, len(d) + 1))
+    if s.CDR3 in d.columns:
+        out["CDR3"] = d[s.CDR3].values
+    out["Sequence"] = d[s.AA_ALN].values
+    return out.to_csv(index=False).encode()
+
+
 def pair_lab(p, order=None):
     return s.pair_lab(ds.rnds if order is None else order, p)
 
@@ -422,15 +458,47 @@ with t2:
 with t3:
     st.subheader("Ranked candidates")
     st.caption(
-        f"Every variant in {ds.name} scored by the model. Predicted enrichment is a probability "
-        "of surviving selection, not a predicted read count and not an affinity."
+        f"Every variant in {ds.name} scored by the model. Predicted enrichment is the model's "
+        "probability that the variant enriches, from 0 to 1, read from its sequence alone. "
+        "Model call is that probability thresholded at 0.5. Neither is a predicted read count "
+        "and neither is a binding affinity."
     )
     n = st.slider("Show", 10, 500, CFG.top_n, step=10)
-    st.dataframe(cnt_cols(r.ranked.head(n), ds.rnds), use_container_width=True,
-                 hide_index=True)
+    pick = st.multiselect("Data split", SPLITS, default=SPLITS)
+
+    # rank is the row's place in the whole ranking, computed before the filter, so narrowing to
+    # out-of-sample rows shows how far down the list they sit rather than renumbering from 1
+    rank = np.arange(1, len(r.ranked) + 1)
+    prov = split_lab(r.ranked[s.SPLIT]).values
+    idx = np.flatnonzero(np.isin(prov, pick))[:n]
+    top = r.ranked.iloc[idx]
+
+    cnt = [s.cnt(rr) for rr in ds.rnds if s.cnt(rr) in top.columns]
+    show = cnt_cols(top[[pl.PRED, pl.CLS, s.ENR] + cnt], ds.rnds).rename(
+        columns={
+            pl.PRED: "Predicted enrichment",
+            pl.CLS: "Model call",
+            s.ENR: "Measured enrichment",
+        }
+    )
+    show.insert(0, "Data split", prov[idx])
+    show.insert(0, "Substitutions", [subs(q, r.wt, r.imgt) for q in top[s.AA_ALN]])
+    # adjacent probabilities tie at four decimal places, so a row's place in the sort is only
+    # readable if it is stated
+    show.insert(0, "Rank", rank[idx])
+    st.dataframe(show, use_container_width=True, hide_index=True)
+    if not pick:
+        st.info("Pick at least one data split to list candidates.")
+    st.caption(
+        "Data split is how the candidate was used when the model was fitted. **Seen in "
+        "training**: used to fit the weights. **Held out**: not used to fit, and used to "
+        "compute the accuracy figures on the Model tab. **Not labelled**: enrichment could not "
+        "be called from its counts, so it was used for neither — these are the candidates only "
+        "the model can rank."
+    )
     st.download_button(
         "Download full ranking (CSV)",
-        r.ranked.to_csv(index=False).encode(),
+        rank_csv(r, ds.rnds, (camp, ds.name, tuple(tp), tuple(sp), lam, min_ct)),
         f"{slug(ds.name)}_{slug(tp[0])}_{slug(tp[1])}_ranked.csv",
         "text/csv",
     )
