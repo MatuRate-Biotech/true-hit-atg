@@ -13,7 +13,7 @@ import streamlit as st
 from truehit_atg import agent, enrich, ingest, pipeline as pl, schema as s
 from truehit_atg.config import CFG
 
-st.set_page_config(page_title="TrueHit ATG", layout="wide")
+st.set_page_config(page_title="RapidMat", layout="wide")
 
 
 UP = "Uploaded file"
@@ -161,9 +161,9 @@ def provenance(order):
     return "; ".join(bits) + "."
 
 
-st.title("TrueHit ATG")
+st.title("RapidMat")
 st.caption(
-    "Ranks nanobody variants by **predicted enrichment** — what survives selection — from "
+    "Ranks nanobody variants by **predicted enrichment** (what survives selection) from "
     "sequence alone. Enrichment is a proxy for binding confounded by expression and "
     "stickiness, so this does not predict binding affinity. An open implementation of "
     "Paul et al. (2026)."
@@ -243,7 +243,7 @@ if not r.conv:
 
 t1, t2, t3, t4, t5, t6 = st.tabs(
     ["Enrichment", "Model", "Candidates", "Substitution preferences", "Score sequences",
-     "Onboard a dataset"]
+     "Upload Dataset"]
 )
 
 with t1:
@@ -571,10 +571,11 @@ with t5:
         else:
             if unk:
                 st.warning(f"{unk} residues were not recognised and were read as gaps.")
-            st.dataframe(out, use_container_width=True, hide_index=True)
+            st.dataframe(out.rename(columns={pl.PRED: "Predicted enrichment"}),
+                         use_container_width=True, hide_index=True)
 
 with t6:
-    st.subheader("Onboard someone else's dataset")
+    st.subheader("Upload Dataset")
     st.caption(
         "Upload a CSV of clones with per-round counts. A model reads the column names and "
         "writes the converter; the file then runs through the same enrichment, encoding and "

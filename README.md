@@ -2,7 +2,7 @@
 
 Antibody library work for Cal Hacks 13.0. Two independent projects, one directory each.
 
-### `true-hit-atg/` — TrueHit ATG (headline)
+### `true-hit-atg/` — RapidMat (headline)
 
 ML-guided nanobody affinity maturation. Takes per-round sequencing data from an affinity
 maturation campaign, computes how much each variant enriched round over round, and trains a

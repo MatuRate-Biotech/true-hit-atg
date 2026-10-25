@@ -1,4 +1,4 @@
-# TrueHit ATG
+# RapidMat
 
 ML-guided nanobody affinity maturation.
 

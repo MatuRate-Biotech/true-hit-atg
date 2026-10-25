@@ -1,4 +1,4 @@
-# TrueHit ATG — a walkthrough
+# RapidMat — a walkthrough
 
 Hi Jessica. This is the one document to read if you want to understand what got built and run
 it yourself. It assumes you know antibodies and selection, and assumes nothing about Python.
