@@ -429,7 +429,8 @@ truehit_atg/
   model.py     L1 logistic, AUC, PR-AUC, conditional AUC, precision-at-K, coefficients
   ingest.py    an uploaded CSV, scored or with counts, into the contract
   agent.py     a model reads an unknown file's columns and writes the converter
-  pipeline.py  run() -> Res and run_upload() -> UpRes(Res); the only things a UI calls
+  pipeline.py  run() -> Res and run_upload() -> UpRes(Res); the only things a UI calls;
+               with_sub() puts substitution notation on the coefficient frame
 app.py         Streamlit, thin: no UI import exists anywhere in the package
 data/
   paul2026/    AT110, NbB7, RX002
@@ -823,11 +824,73 @@ library size, so CPM is taken against the summed counts — 272,860 and 261,609 
 enrichment, a different mixture cut and different labels. The two numbers measure different
 things.
 
+### The Substitution preferences tab says what its columns mean
+
+The table beside the heatmap rendered `model.coefs()` straight, so its headers were the internal
+field names `feat`, `beta`, `imgt`, `aa`, none of which the page defined. `feat` also carried
+nothing the other two did not: it is `imgt` and `aa` joined by an underscore (`66_D`).
+
+#### Standard substitution notation
+
+`pipeline.with_sub(cf, imgt, wt)` adds a `sub` column — parent residue, position, substituted
+residue, so `66_D` becomes `N66D`. The parent residue at a position is `wt[imgt.index(p)]`,
+mapped through `dict(zip(imgt, wt))` rather than looked up per row. It is applied where `cf` is
+built in both `run()` and `run_upload()`.
+
+**In the pipeline, not in `app.py`.** `cf` and `wt` are both already in scope there, and nothing
+inside `truehit_atg/` imports streamlit — `app.py` is a renderer. Keeping the derivation in the
+pipeline is what keeps that true.
+
+**`heat()` reads the same frame.** It pivots `aa` against `imgt` to build the heatmap, so those
+two fields are a contract: `sub` is added beside them, and neither is renamed or dropped. Only
+the *displayed* headers change.
+
+| Field | Displayed as |
+|---|---|
+| `sub` | Substitution |
+| `imgt` | Position (IMGT), or just Position for an upload |
+| `aa` | Amino acid |
+| `beta` | beta |
+
+An upload numbers positions `1..L` from its own parent (`encode.ref_cols`), so the header, the
+heatmap's x axis and the IMGT caption all key off the same `ds.imgt` flag and cannot disagree.
+
+#### Two definitions the page was missing
+
+- **beta**, under the table: the learned weight for that substitution, in log-odds, with the
+  sign explained and two fixed worked figures for the scale (+4.34 multiplies the odds by about
+  76; −1.0 divides them by about 2.7). `exp(4.34)` is 76.7 and `1/exp(-1)` is 2.72. The figures
+  are illustrations of the scale, **not values read off the current fit** — do not "correct"
+  them against a changed run. +4.34 does currently coincide with AT110's top weight.
+- **IMGT numbering**, under the heatmap: the same number means the same structural position in
+  any antibody, and a lettered position such as `111A` is an insertion code for a loop that
+  varies in length. Rendered only for a vendored campaign. AT110's x axis does carry `111A`,
+  `111B`, `111C`, `112A`, `112C` and `112D`, so the example is visible on the chart it sits under.
+
+The existing caption counting the features that survived the L1 penalty is accurate and stays.
+
+#### Heatmap labels
+
+Colour bar `weight` -> `weight (beta)`; y axis `substituted residue` -> `amino acid substituted
+in`; x axis `IMGT position`, or `position` for an upload. The map, the symmetric `vmin`/`vmax`,
+the sizing and the ticks are untouched. Nothing here changes a number.
+
+#### The notation uses each campaign's own parent, verified
+
+Asserted in code across every row — all 133 AT110 and all 469 RX002 coefficients reconstruct as
+`wt[imgt.index(p)] + p + aa` against their own campaign's parent — and checked on screen. Two
+positions are decisive, because the campaigns differ there:
+
+| Position | AT110 parent | RX002 parent | RX002 shows | Would show if it used AT110's |
+|---|---|---|---|---|
+| 36 | A | R | `R36L` | `A36L` |
+| 38 | I | V | `V38G` | `I38G` |
+
+AT110's own table has `A36V` at that position, so the two campaigns visibly disagree where they
+should.
+
 #### Known, not fixed
 
-- `model.coefs()` hardcodes the position column name to `imgt`, so the strongest-substitutions
-  table heads plain 1..L positions with an antibody-numbering term, contradicting the heatmap
-  axis beside it.
 - `pred_enr` saturates: the top of an 18k ranking is 0.99999999995 and up, which Streamlit
   renders as a bare `1`, so the visible top of the Candidates table shows no ordering.
 - The Onboard tab keeps its own "Run the pipeline on this upload" button, a second route to the

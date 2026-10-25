@@ -450,14 +450,34 @@ with t4:
     ax.set_xticklabels(h.columns, rotation=90, fontsize=7)
     ax.set_yticks(range(h.shape[0]))
     ax.set_yticklabels(h.index, fontsize=8)
-    ax.set_xlabel("IMGT position" if ds.imgt else "position in the parent sequence")
-    ax.set_ylabel("substituted residue")
-    f.colorbar(im, ax=ax, label="weight")
+    ax.set_xlabel("IMGT position" if ds.imgt else "position")
+    ax.set_ylabel("amino acid substituted in")
+    f.colorbar(im, ax=ax, label="weight (beta)")
     f.tight_layout()
     st.pyplot(f)
+    # an upload numbers positions 1..L from its own parent, so there is no IMGT scheme to explain
+    if ds.imgt:
+        st.caption(
+            "Positions use IMGT numbering, a standard scheme where the same number refers to "
+            "the same structural position in any antibody. Positions with a letter, such as "
+            "111A, are insertion codes for loops that vary in length between antibodies."
+        )
 
     st.markdown("**Strongest substitutions**")
-    st.dataframe(r.cf.head(20), use_container_width=True, hide_index=True)
+    pos_lab = "Position (IMGT)" if ds.imgt else "Position"
+    tbl = r.cf.head(20)[["sub", "imgt", "aa", "beta"]].rename(
+        columns={"sub": "Substitution", "imgt": pos_lab, "aa": "Amino acid"}
+    )
+    st.dataframe(tbl, use_container_width=True, hide_index=True)
+    st.caption(
+        "Substitution is the parent residue, position and substituted residue."
+    )
+    # the two worked figures are fixed illustrations of the scale, not values from this fit
+    st.caption(
+        "**beta** — the model's learned weight for that substitution, in log-odds. Positive "
+        "means the substitution raises the odds of a variant being enriched, negative lowers "
+        "them. A beta of +4.34 multiplies the odds by about 76; −1.0 divides them by about 2.7."
+    )
 
 with t5:
     st.subheader("Score sequences the dataset never contained")

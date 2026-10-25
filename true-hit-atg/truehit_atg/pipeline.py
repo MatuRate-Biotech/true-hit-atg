@@ -44,6 +44,16 @@ def n_mut(seqs, wt):
     return seqs.apply(lambda q: sum(a != b for a, b in zip(q, wt)))
 
 
+# substitution notation on the coefficient frame: parent residue, position, substituted
+# residue (N66D). the parent residue at a position is wt[imgt.index(p)]; mapped rather than
+# looked up per row.
+def with_sub(cf, imgt, wt):
+    parent = dict(zip(imgt, wt))
+    out = cf.copy()
+    out["sub"] = out["imgt"].map(parent) + out["imgt"].astype(str) + out["aa"]
+    return out
+
+
 def run(camp=None, train=None, test=None, lam=None, min_ct=None):
     camp = camp or CFG.camp
     tp = tuple(train or CFG.train)
@@ -114,7 +124,7 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
         pk=model.prec_at_k(te[s.ENR_BIN], model.score(m, Xte)),
         base=float(te[s.ENR_BIN].mean()),
         mix=enrich.pair_mix(raw_a, tp[0], tp[1], camp),
-        cf=model.coefs(m, nm),
+        cf=with_sub(model.coefs(m, nm), imgt, wt),
         ranked=ranked,
         conv=m.conv,
         imgt=imgt,
@@ -214,7 +224,7 @@ def run_upload(raw, camp=None, parent=None, lam=None, name=None):
     cols = [s.VAR, PRED, CLS, s.ENR] + [s.cnt(r) for r in rnds]
 
     ranked = rk.sort_values(PRED, ascending=False)[cols].reset_index(drop=True)
-    cf = model.coefs(m, nm)
+    cf = with_sub(model.coefs(m, nm), imgt, wt)
     auc = model.auc(m, Xte, te[s.ENR_BIN])
     # spread alone is not enough: a model that memorises its training rows produces confident,
     # well-spread scores and still generalises at chance, which is exactly what an all-singles
