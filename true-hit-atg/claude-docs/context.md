@@ -689,6 +689,51 @@ The old caption attributed all 1,404 to the last row, which is 13 of them. The t
 "variants with too few reads to call, or whose enrichment sits between the two humps" — both
 reasons, neither claimed as the only one.
 
+### The union-table leak, and the row filter, 2026-10-24
+
+The vendored CSVs hold **one row per variant across every round** — the union. `data.load()`
+took a pair but used it only to choose which log-ratio and label columns to read, never to
+filter rows. So the AT110 FACS1/MACS view returned all 5,257 variants, 1,190 of which had zero
+reads in *both* selected rounds and existed only because FACS2 was sequenced.
+
+Those rows were harmless to every metric and ruinous to the ranking. Their log ratio is exactly
+0 (both rounds floored to 1 CPM), the mixture excludes zero before labelling, so they never
+entered training or evaluation — but `run()` scores every row in the table, and they took
+**81 of the top 100 candidates**, 45 of the top 50, 10 of the top 10.
+
+`data.load()` now keeps only variants with at least one read in either round of the selected
+pair, gated on that pair rather than a fixed one: a variant seen only in FACS2 is real data for
+a FACS2 pair. AT110 FACS1/MACS goes 5,257 -> 4,067 rows and 1,404 -> 214 unlabelled (201 under
+the 5-read floor, 13 below 80% confidence). Labelled stays 3,853. After the filter, 0 of the
+top 100 come from that group.
+
+**Do not use `CFG.min_ct` for this.** Filtering on input count instead would delete 852 clones
+with zero input reads but real FACS1 reads, 750 of them labelled enriched — the strongest
+risers in the dataset. The two controls are different things.
+
+**Accuracy is untouched, verified rather than assumed.** Running the same pipeline with the
+filter on and off: AT110 within-pair 0.9216 both ways, RX002 0.9187 both ways, with identical
+train and test counts. No dropped row has a non-zero log ratio in either campaign, so none could
+ever have been labelled.
+
+#### `run()` loads once per pair
+
+The filter exposed a latent bug. `run()` loaded the table once, gated on the **train** pair, and
+then computed the test pair's frame from those same rows — judging the test pair on the train
+pair's row set. Before the filter that was invisible, because no rows were ever dropped. After
+it, the cross-round view lost 1,213 labelled test rows on AT110 and 3,858 on RX002, and the
+published comparison fell to 0.908 and 0.820.
+
+`run()` now calls `data.load()` once per pair and reuses the frame only when the pairs are
+equal. Because `a` and `b` are no longer the same row set, the counts baseline joins them on
+`var_id` instead of position. Cross-round figures are back to 0.960 / 0.942 on AT110 and
+0.952 / 0.952 on RX002.
+
+The upload path never had this problem: `run_upload()` does no pair-gated filtering, so a
+two-round and a three-round export of the same campaign already behaved correctly, giving 0.915
+within-pair and 0.980 cross-round. The filter is what derives that same per-pair view from a
+union table.
+
 ### Stretch, in order, each independently droppable
 
 1. **Upload path.** Accept the public format `{clone id, sequence, count per round}` as CSV and

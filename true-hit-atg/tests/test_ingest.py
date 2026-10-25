@@ -34,9 +34,9 @@ def src(tmp_path_factory, vendored):
     return p
 
 
-def test_probe(src):
+def test_probe(src, vendored):
     pr = ingest.probe(src)
-    assert pr["n_rows"] == 5257
+    assert pr["n_rows"] == len(vendored)
     assert pr["cols"] == ["clone", "protein", "input_ct", "r1_ct", "junk"]
     assert pr["dtypes"]["input_ct"].startswith("int")
     assert len(pr["head"]) == 5

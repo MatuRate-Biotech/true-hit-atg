@@ -44,6 +44,11 @@ ONE_ROUND = dict(GOOD, rnds=[{"round": "MACS", "col": "input_ct"}])
 
 
 @pytest.fixture(scope="module")
+def n_rows():
+    return len(data.load("AT110", pair=("FACS1", "MACS")))
+
+
+@pytest.fixture(scope="module")
 def src(tmp_path_factory):
     df = data.load("AT110", pair=("FACS1", "MACS"))
     p = tmp_path_factory.mktemp("ag") / "unknown.csv"
@@ -82,11 +87,11 @@ def test_ask_raises_on_empty_text(src):
         agent.ask(ingest.probe(src), 126, client=FakeClient(""))
 
 
-def test_onboard_first_try(src):
+def test_onboard_first_try(src, n_rows):
     raw, spec, hist = agent.onboard(src, n_pos=126, client=FakeClient(GOOD))
-    assert raw is not None and len(raw) == 5257
+    assert raw is not None and len(raw) == n_rows
     assert spec.rnds == {"MACS": "input_ct", "FACS1": "r1_ct"}
-    assert len(hist) == 1 and hist[0].ok and hist[0].n_rows == 5257
+    assert len(hist) == 1 and hist[0].ok and hist[0].n_rows == n_rows
 
 
 # the loop is the feature: it reads its own error and corrects

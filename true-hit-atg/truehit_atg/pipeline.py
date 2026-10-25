@@ -48,9 +48,15 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
     camp = camp or CFG.camp
     tp = tuple(train or CFG.train)
     sp = tuple(test or CFG.test)
-    raw = data.load(camp, pair=tp, min_ct=min_ct)
-    a = enrich.pair(raw, tp[0], tp[1], camp)
-    b = enrich.pair(raw, sp[0], sp[1], camp)
+    # each pair gets its own view of the vendored union table, because data.load() filters
+    # rows to the variants that pair actually observed. loading once and reusing it would
+    # judge the test pair on the train pair's row set.
+    raw_a = data.load(camp, pair=tp, min_ct=min_ct)
+    a = enrich.pair(raw_a, tp[0], tp[1], camp)
+    if sp == tp:
+        b = a
+    else:
+        b = enrich.pair(data.load(camp, pair=sp, min_ct=min_ct), sp[0], sp[1], camp)
 
     imgt, wt = encode.wt_cols(camp)
     tr = a[(a[s.SPLIT] == "train") & a[s.ENR_BIN].notna()]
@@ -75,7 +81,10 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
     # so within a load it scores 0.500 and whatever the model scores is sequence signal
     auc_wi = model.cond_auc(te[s.ENR_BIN], model.score(m, Xte), nmu)
     # counts baseline: circular, the label is arithmetic on these same counts. kept to show that.
-    auc_ct = enrich.baseline_auc(a.loc[te.index, s.ENR], te[s.ENR_BIN])
+    early = pd.Series(
+        a.set_index(s.VAR)[s.ENR].reindex(te[s.VAR]).values, index=te.index
+    )
+    auc_ct = enrich.baseline_auc(early, te[s.ENR_BIN])
 
     Xall, _, _ = encode.encode(a[s.AA_ALN], imgt=imgt, wt=wt)
     rk = a.copy()
@@ -104,7 +113,7 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
         roc=model.roc(m, Xte, te[s.ENR_BIN]),
         pk=model.prec_at_k(te[s.ENR_BIN], model.score(m, Xte)),
         base=float(te[s.ENR_BIN].mean()),
-        mix=enrich.pair_mix(raw, tp[0], tp[1], camp),
+        mix=enrich.pair_mix(raw_a, tp[0], tp[1], camp),
         cf=model.coefs(m, nm),
         ranked=ranked,
         conv=m.conv,

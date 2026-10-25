@@ -49,6 +49,12 @@ def load(camp=None, pair=None, min_ct=None, min_ct_rnd=None):
         out[s.norm(r)] = raw[s.up_norm(r)]
         out[s.has(r)] = raw[f"{r}_hasread"]
 
+    # the vendored tables hold one row per variant across every round, so a pair's view
+    # otherwise includes variants only the other rounds ever saw. gated on the selected
+    # pair: a variant seen only in FACS2 is real data for a FACS2 pair.
+    keep = (out[s.cnt(early)] > 0) | (out[s.cnt(late)] > 0)
+    out = out[keep].reset_index(drop=True)
+
     mc = CFG.min_ct if min_ct is None else min_ct
     if mc:
         r = min_ct_rnd or CFG.min_ct_rnd or early
