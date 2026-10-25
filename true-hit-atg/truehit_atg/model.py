@@ -45,6 +45,16 @@ def roc(m, X, y):
     return fpr, tpr
 
 
+# precision among the top K, for every K. the fraction of the K highest-scoring variants
+# that are enriched.
+def prec_at_k(y, p):
+    y = np.asarray(y).astype(int)
+    o = np.argsort(-np.asarray(p, dtype=float))
+    y = y[o]
+    k = np.arange(1, len(y) + 1)
+    return k, np.cumsum(y) / k
+
+
 def coefs(m, names):
     b = m.coef_.ravel()
     nz = b != 0

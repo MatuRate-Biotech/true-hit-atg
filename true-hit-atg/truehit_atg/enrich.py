@@ -34,15 +34,34 @@ def has_read(df, rnd, fil=None):
     return df[s.cnt(rnd)] >= (CFG.fil_cnt if fil is None else fil)
 
 
-def binarize(lr, elig, tr=None, seed=None):
-    tr = CFG.gmm_tr if tr is None else tr
+# the fit itself, factored out so the labels and any reported parameters provably come from
+# the same place. the arithmetic below is unchanged.
+def mix_fit(lr, elig, seed=None):
     sd = CFG.gmm_seed if seed is None else seed
-    out = pd.Series(np.nan, index=lr.index, dtype=float)
     m = elig & lr.notna() & (lr != 0)
     if m.sum() < 2:
+        return None, m
+    v = lr[m].values.reshape(-1, 1)
+    return GaussianMixture(n_components=2, random_state=sd).fit(v), m
+
+
+# (lower hump centre, upper hump centre, share of the fit in the lower hump)
+def mix_params(lr, elig, seed=None):
+    gm, _ = mix_fit(lr, elig, seed)
+    if gm is None:
+        return None
+    lo, hi = gm.means_.argsort(0).squeeze()
+    mu = gm.means_.ravel()
+    return float(mu[lo]), float(mu[hi]), float(gm.weights_[lo])
+
+
+def binarize(lr, elig, tr=None, seed=None):
+    tr = CFG.gmm_tr if tr is None else tr
+    out = pd.Series(np.nan, index=lr.index, dtype=float)
+    gm, m = mix_fit(lr, elig, seed)
+    if gm is None:
         return out
     v = lr[m].values.reshape(-1, 1)
-    gm = GaussianMixture(n_components=2, random_state=sd).fit(v)
     lo, hi = gm.means_.argsort(0).squeeze()
     ps = gm.predict_proba(v)
     asg = np.full(len(ps), np.nan)
@@ -65,13 +84,21 @@ def make_split(lb, test_size=None, seed=None):
     return out
 
 
+def elig_mask(df, late, early, use_shipped_has=True):
+    if use_shipped_has and s.has(late) in df.columns and s.has(early) in df.columns:
+        return df[s.has(late)].astype(bool) | df[s.has(early)].astype(bool)
+    return has_read(df, late) | has_read(df, early)
+
+
+def pair_mix(df, late, early, camp=None, use_shipped_has=True):
+    return mix_params(log_ratio(df, late, early, camp),
+                      elig_mask(df, late, early, use_shipped_has))
+
+
 def pair(df, late, early, camp=None, use_shipped_has=True):
     out = df.copy()
     out[s.ENR] = log_ratio(out, late, early, camp)
-    if use_shipped_has and s.has(late) in out.columns and s.has(early) in out.columns:
-        el = out[s.has(late)].astype(bool) | out[s.has(early)].astype(bool)
-    else:
-        el = has_read(out, late) | has_read(out, early)
+    el = elig_mask(out, late, early, use_shipped_has)
     out[s.ENR_BIN] = binarize(out[s.ENR], el)
     out[s.SPLIT] = make_split(out[s.ENR_BIN])
     return out

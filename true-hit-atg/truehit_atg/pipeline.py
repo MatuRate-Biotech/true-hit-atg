@@ -29,6 +29,9 @@ class Res:
     auc_within: float
     auc_cnt: float
     roc: tuple
+    pk: tuple
+    base: float
+    mix: tuple
     cf: pd.DataFrame
     ranked: pd.DataFrame
     conv: bool
@@ -99,6 +102,9 @@ def run(camp=None, train=None, test=None, lam=None, min_ct=None):
         auc_within=auc_wi,
         auc_cnt=auc_ct,
         roc=model.roc(m, Xte, te[s.ENR_BIN]),
+        pk=model.prec_at_k(te[s.ENR_BIN], model.score(m, Xte)),
+        base=float(te[s.ENR_BIN].mean()),
+        mix=enrich.pair_mix(raw, tp[0], tp[1], camp),
         cf=model.coefs(m, nm),
         ranked=ranked,
         conv=m.conv,

@@ -29,7 +29,8 @@ answer key.
 ### Layout
 
 ```
-claude-docs/context.md              full working context for both ideas, read this first
+true-hit-atg/WALKTHROUGH.md         start here: plain language, setup, and a tour of the app
+claude-docs/context.md              full working context for both ideas
 true-hit-atg/                       idea 2, real dataset
 true-hit-atg/claude-docs/context.md the same context cut down to idea 2 alone
 true-hit-qc/                        idea 1, simulated dataset

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class Cfg:
     camp: str = "AT110"
     train: tuple = ("FACS1", "MACS")
-    test: tuple = ("FACS2", "MACS")
+    test: tuple = ("FACS1", "MACS")
     min_ct: int = 0
     min_ct_rnd: str = ""
     norm: str = "cpm"

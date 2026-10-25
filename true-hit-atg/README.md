@@ -11,6 +11,10 @@ This directory computes enrichment from per-round data, then trains a model to p
 sequence, so candidates can be ranked from an early round instead of running the whole
 campaign. Fewer rounds means less time and less reagent.
 
+**New here, or not a Python person?** Read [WALKTHROUGH.md](WALKTHROUGH.md) instead — the same
+project in plain language, with setup for macOS and Windows and a tour of what each screen
+means. This README is the developer view.
+
 ### Things to keep straight
 
 1. **Not novel.** This is an open implementation of Paul et al. (2026). Pitch it as a clean,

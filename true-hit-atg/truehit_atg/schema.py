@@ -76,6 +76,26 @@ LIBS = {
 }
 
 
+# display names for rounds. positional by rule: index 0 is Input, index i is Output i.
+# `camp` is a campaign name, or an ordered sequence of rounds for an uploaded dataset whose
+# rounds come from its own cnt_* columns.
+def rnd_order(camp):
+    return list(CAMPS[camp].rnds) if isinstance(camp, str) else list(camp)
+
+
+def rnd_lab(camp, rnd):
+    order = rnd_order(camp)
+    if rnd not in order:
+        return rnd
+    i = order.index(rnd)
+    return "Input" if i == 0 else f"Output {i}"
+
+
+def pair_lab(camp, pair):
+    late, early = pair
+    return f"{rnd_lab(camp, late)} over {rnd_lab(camp, early)}"
+
+
 def pairs(camp):
     r = CAMPS[camp].rnds
     return [(r[j], r[i]) for i in range(len(r)) for j in range(i + 1, len(r))]

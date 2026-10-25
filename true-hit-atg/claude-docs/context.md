@@ -165,6 +165,12 @@ reaches a judge.
    claim it predicts a clone's exact later-round count.
 4. **Validate across rounds, not within.** Testing on held-out variants from the same round risks
    learning the experiment's quirks. Train on an early round and test on a later one.
+   **Reconciled with the default on 2026-10-24:** the app now *defaults* to within-pair, because
+   a real user has an Input round and one Output round and nothing later. That does not weaken
+   this constraint; it is why the Model tab shows a **reduced** set of statistics in that
+   configuration. Fewer claims, because fewer are supportable. The published comparison, PR-AUC,
+   strict AUC and the observed-counts baseline appear only when a different test pair is chosen,
+   and the reproduction tests pin the cross-round pair so they keep measuring it.
 5. **Out of distribution is stated, not hidden.** Scoring a sequence from a different target is
    unreliable; the app says so instead of returning a confident-looking score.
 
@@ -420,13 +426,15 @@ truehit_atg/
   data.py      load vendored tables into the contract
   enrich.py    CPM floor, log10, ratio, GMM labels, split, baseline AUC
   encode.py    21-symbol one-hot, parent-column drop, IMGT feature names
-  model.py     L1 logistic, AUC, ROC, coefficient table
-  pipeline.py  run() -> Res; the only thing a UI calls
+  model.py     L1 logistic, AUC, PR-AUC, conditional AUC, precision-at-K, coefficients
+  ingest.py    an uploaded CSV, scored or with counts, into the contract
+  agent.py     a model reads an unknown file's columns and writes the converter
+  pipeline.py  run() -> Res and run_upload() -> UpRes; the only things a UI calls
 app.py         Streamlit, thin: no UI import exists anywhere in the package
 data/
   paul2026/    AT110, NbB7, RX002
   DATASET.md   the data record
-tests/         43 tests
+tests/         142 tests
 ```
 
 Setup is `python -m venv .venv`, `.venv/Scripts/pip install -r requirements.txt`, then
@@ -434,9 +442,8 @@ Setup is `python -m venv .venv`, `.venv/Scripts/pip install -r requirements.txt`
 this directory. `pythonpath = .` in `pytest.ini` is relative to here, so run from here.
 
 A full AT110 run is a few seconds on CPU: the solver converges in 127 iterations. The app is
-five tabs — enrichment with the GMM split drawn over the log-ratio histogram, model metrics
-against both baselines, ranked candidates, the substitution-preference heatmap, and a box for
-scoring sequences the campaign never contained.
+six tabs — enrichment, model, ranked candidates, the substitution-preference heatmap, a box for
+scoring sequences the campaign never contained, and onboarding somebody else's dataset.
 
 ### Reproduction, measured
 
@@ -612,6 +619,75 @@ anyone revisits it.
 
 **`props` defaults to off.** The published reproduction depends on the paper's pure one-hot
 encoding, and the reproduction tests are the tripwire that this stayed additive.
+
+### The product reframe, 2026-10-24
+
+The framing moved from "a reproduction of Paul et al." to "a tool for predicting enrichment".
+The paper reproduction is still there and still tested, but it is no longer the headline.
+
+**The default is now within-pair.** `CFG.test` equals `CFG.train`, both `FACS1`/`MACS`, because
+that is the data a real user has. Measured on AT110 in that configuration:
+
+| | within-pair default | cross-round |
+|---|---|---|
+| Test ROC-AUC | 0.922 | 0.960 |
+| Model within fixed load | 0.907 | 0.945 |
+| Substitutions from parent | 0.564 | 0.752 |
+| Held-out variants | 771 | 852 |
+
+Three consequences worth holding onto:
+
+- **Strict AUC stops being a distinct number.** It is the AUC over test rows absent from
+  training; with both drawn from one pair's split those sets are disjoint by construction, so it
+  equals the test AUC exactly. It stays in the cross-round view, where it still means something.
+- **The reproduction tests are pinned.** `tests/test_pipeline.py` defines `CROSS` and passes it
+  wherever a published or previously measured figure is asserted, so moving the app default
+  cannot quietly move those numbers.
+- **The `res` fixture is deliberately unpinned**, so the default configuration stays covered. Its
+  shape assertion checks the 80/20 split rather than a row count tied to one pair.
+
+### Precision at K, which reads better than AUC for this product
+
+`Res.pk` and `Res.base`, from `model.prec_at_k`. On AT110 at the default, with a base rate of
+28%:
+
+| K | 10 | 50 | 100 | 200 | 300 | 500 | 771 |
+|---|---|---|---|---|---|---|---|
+| share enriched | 100% | 98% | 94% | 87% | 64% | 41% | 28% |
+
+A 3.5x lift over base at K=50. "Of the top 50 the tool hands you, 49 enriched, against 28% at
+random" is a statement about a decision someone actually makes, which an AUC is not.
+
+### Round names are positional everywhere in the UI
+
+`schema.rnd_lab(camp, rnd)` and `schema.pair_lab(camp, pair)`: index 0 of `CAMPS[camp].rnds` is
+**Input**, index i is **Output i**. The first argument takes a campaign name *or* an explicit
+round order, so an upload's own `cnt_*` columns go through the same rule.
+
+The assay names survive in exactly one place, a provenance line on the Enrichment tab: "Input is
+the MACS round; Output 1 is FACS1; Output 2 is FACS2." Everywhere else — both sidebar dropdowns,
+headings, table headers, plot axes — uses the generic label. Note the rule is positional, so
+`MACS` is **Input** in AT110 and RX002 but **Output 1** in NbB7, which has a `naive` round first.
+
+### What the Enrichment tab now states, and the numbers behind it
+
+The tab explains the arithmetic in plain language rather than naming it: counts per million
+against the pre-filter library size, the 1 CPM floor, log10, later minus earlier, then the
+two-component fit. `enrich.mix_params()` exposes the fitted parameters through `Res.mix`, from
+`enrich.mix_fit()` — the same fit the labels come from, so the quoted humps cannot drift from
+the labelling. On AT110 the humps sit at −2.08 and +1.96 with 70% of the fit in the lower one.
+
+**The abstained figure was being described wrongly** and is now corrected. Measured on AT110:
+
+| Reason | Rows |
+|---|---|
+| Enrichment exactly 0, never scored (zero reads in both rounds) | 1,190 |
+| Below the 5-read floor in both rounds | 201 |
+| Scored, below 80% confidence | 13 |
+
+The old caption attributed all 1,404 to the last row, which is 13 of them. The tab now says
+"variants with too few reads to call, or whose enrichment sits between the two humps" — both
+reasons, neither claimed as the only one.
 
 ### Stretch, in order, each independently droppable
 
