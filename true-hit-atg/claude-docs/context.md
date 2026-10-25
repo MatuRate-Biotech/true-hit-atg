@@ -403,7 +403,7 @@ expression clones can dominate FACS2 counts, and polyreactivity drove cysteine e
 | Score outside clones | **done** | our distinctive feature; valid only inside that target's neighbourhood, and the app says so |
 | Per-position substitution preferences | **done** | falls straight out of the L1 weights; misses combinations, and passenger mutations still mislead |
 | Click-run app | **done** | five tabs, seconds per run, nothing to babysit on stage |
-| Upload path | next | the public `{clone id, sequence, counts}` CSV through the same code |
+| Upload path | done | the public `{clone id, sequence, counts}` CSV through the same code, into every tab |
 | A dataset outside the paper | next | ProteinGym first, then MaveDB — section 7 |
 | Antigen-specific comparison | open | three targets to compare; less data per target, more models to juggle |
 | 2D landscape map | open | striking but purely presentational; does not improve the model |
@@ -429,7 +429,7 @@ truehit_atg/
   model.py     L1 logistic, AUC, PR-AUC, conditional AUC, precision-at-K, coefficients
   ingest.py    an uploaded CSV, scored or with counts, into the contract
   agent.py     a model reads an unknown file's columns and writes the converter
-  pipeline.py  run() -> Res and run_upload() -> UpRes; the only things a UI calls
+  pipeline.py  run() -> Res and run_upload() -> UpRes(Res); the only things a UI calls
 app.py         Streamlit, thin: no UI import exists anywhere in the package
 data/
   paul2026/    AT110, NbB7, RX002
@@ -443,7 +443,9 @@ this directory. `pythonpath = .` in `pytest.ini` is relative to here, so run fro
 
 A full AT110 run is a few seconds on CPU: the solver converges in 127 iterations. The app is
 six tabs — enrichment, model, ranked candidates, the substitution-preference heatmap, a box for
-scoring sequences the campaign never contained, and onboarding somebody else's dataset.
+scoring sequences the dataset never contained, and onboarding somebody else's dataset. An
+onboarded file appears in the sidebar's dataset list beside the three campaigns and renders in
+the five analysis tabs through the same code; an 18k-row upload takes about a minute to fit.
 
 ### Reproduction, measured
 
@@ -734,12 +736,109 @@ two-round and a three-round export of the same campaign already behaved correctl
 within-pair and 0.980 cross-round. The filter is what derives that same per-pair view from a
 union table.
 
+### An upload renders in every tab
+
+Three changes, in order, each depending on the one before.
+
+#### `run_upload()` returns a `Res`
+
+It used to return a smaller `UpRes` carrying only what the Onboard tab drew, so the other five
+tabs could not read it. `UpRes` is now a **subclass** of `Res` with six extra fields
+(`mode`, `rnds`, `labels`, `spread`, `weak`, `head`) and an `n` property. A subclass rather than
+optional fields on `Res`, so `Res` stays the single thing the tabs read and no vendored run
+carries six fields that are always `None`.
+
+`run_upload()` now fills every `Res` field. `auc_strict` is real for a cross-round upload and
+`nan`/`0` for a within-pair one: with one round pair, train and test are disjoint by
+construction, so a strict figure would only restate `auc_te`. `Res.auc`/`Res.pr` were renamed
+`auc_te`/`pr_te` so both paths name the same thing. `run()`'s behaviour is unchanged.
+
+#### The agent is a fallback, not a requirement
+
+The Onboard tab used to call `agent.onboard()` unconditionally, which needs `ANTHROPIC_API_KEY`.
+`ingest.identity_spec(cols)` now builds a `Spec` from the contract's own column names — round
+order from column order — and the tab tries that first. A file that already uses `var_id`,
+`aa_aln` and `cnt_*` is read with no model call at all; only a `ValueError` offers the
+"Ask the model to map it" button. The tab says which path was taken rather than leaving it
+implicit.
+
+A stored mapping is dropped when the uploader clears or the file changes, or a second upload
+renders the first file's result underneath its own error.
+
+#### One `Dset` record, so the tabs stop knowing about campaigns
+
+Six places in `app.py` read `s.CAMPS[camp]`, which raises for an upload. A `Dset` dataclass now
+carries the four facts the tabs need — display name, round order, aligned width, target, and
+whether positions are IMGT — built from `s.CAMPS[camp]` for a campaign and from the stored
+mapping for an upload. `s.CAMPS[camp]` is read in exactly one place. Everything downstream reads
+`ds`, which is what made the rest string substitution.
+
+- **Sidebar.** An onboarded file joins the vendored campaigns as **Uploaded file**; picking it
+  and pressing Run pipeline renders it in all five analysis tabs. The sidebar draws before the
+  Onboard tab, so a newly accepted mapping triggers one `st.rerun()`, guarded on the mapping
+  actually changing.
+- **Round pairs.** Not selectable for an upload — `run_upload()` derives them from round order —
+  so the pair is printed rather than offered.
+- **Count filter.** Hidden for an upload: `run_upload()` has no such parameter, and a control
+  that does nothing is a lie.
+- **Paper comparison.** Explicitly `None` for an upload. It was already `None` by accident via
+  the key tuple; now it says so.
+- **Heatmap axis.** "IMGT position", or "position in the parent sequence" when the upload brought
+  its own parent.
+- **Out-of-distribution warning.** An upload has no target name, so it is worded against the
+  dataset: "The model learned the selection in X only. A sequence from a different parent, target
+  or assay is out of distribution."
+
+A **pre-scored** upload stays on the Onboard tab. It has no rounds and no count columns, so the
+round-pair and enrichment tabs have nothing to draw; it is excluded from the sidebar list with a
+caption saying why, rather than crashing.
+
+#### The worked example was hardcoded to AT110
+
+The enrichment explainer stated "148 reads ... becomes 1,087.6 and 3,205.5 counts per million
+... +0.47 — a 2.9-fold rise". Those CPMs were computed against AT110's pre-filter library and
+were already wrong for NbB7 and RX002. It is now computed from whichever dataset is loaded.
+AT110 reproduces the old text character for character.
+
+#### Verified on a dataset the app was not built around
+
+RX002 reshaped as a two-round upload with its own 122-position parent in the box, measured
+2026-10-24. The app reproduces a direct `run_upload()` call exactly:
+
+| | direct call | the app |
+|---|---|---|
+| rows | 18,179 | 18,179 |
+| train / test | 13,345 / 3,337 | 13,345 / 3,337 |
+| test ROC-AUC | 0.930 | 0.930 |
+| non-zero features | 464 of 2,440 | 464 of 2,440 |
+
+All five tabs populate: histogram with both humps, the same-pair metric set, the ranked table,
+the heatmap on 1..L positions, and the scoring box (parent 0.0835 depleted, a 24E/27H/78E mutant
+0.9999 enriched). Switching back to AT110 cross-round still gives 0.960 / 0.942 / 0.945 with the
+paper line, unchanged.
+
+**This upload is not a cross-check of the vendored RX002.** An upload cannot know the pre-filter
+library size, so CPM is taken against the summed counts — 272,860 and 261,609 — where
+`schema.LIBS["RX002"]` holds 922,141 and 554,585. Different denominators give different
+enrichment, a different mixture cut and different labels. The two numbers measure different
+things.
+
+#### Known, not fixed
+
+- `model.coefs()` hardcodes the position column name to `imgt`, so the strongest-substitutions
+  table heads plain 1..L positions with an antibody-numbering term, contradicting the heatmap
+  axis beside it.
+- `pred_enr` saturates: the top of an 18k ranking is 0.99999999995 and up, which Streamlit
+  renders as a bare `1`, so the visible top of the Candidates table shows no ordering.
+- The Onboard tab keeps its own "Run the pipeline on this upload" button, a second route to the
+  same result as the sidebar. Same figures, confusing seam.
+
 ### Stretch, in order, each independently droppable
 
-1. **Upload path.** Accept the public format `{clone id, sequence, count per round}` as CSV and
-   send it down the same `enrich → encode → model` path. The equal-length guardrail is already
-   in `chk()` and refuses ragged input by name rather than padding it. This is why recomputing
-   from counts mattered: the upload path is the code that already runs.
+1. ~~**Upload path.**~~ **Done.** The public format `{clone id, sequence, count per round}`
+   goes down the same `enrich → encode → model` path and into every tab. The equal-length
+   guardrail in `chk()` refuses ragged input by name rather than padding it. This is why
+   recomputing from counts mattered: the upload path is the code that already runs.
 2. **A dataset not in the paper.** Two tiers, cheapest first.
    - *Tier A, model layer only:* [ProteinGym](https://github.com/OATML-Markslab/ProteinGym).
      Its DMS substitution files carry `mutant`, `mutated_sequence`, `DMS_score` and

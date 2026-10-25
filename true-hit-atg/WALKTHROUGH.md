@@ -88,7 +88,7 @@ cd true-hit-atg/true-hit-atg
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-.venv/bin/python -m pytest -q          # should say 128 passed
+.venv/bin/python -m pytest -q          # should say 142 passed
 .venv/bin/python -m streamlit run app.py
 ```
 
@@ -112,8 +112,9 @@ that.
 share a name, so there are two levels with the same name; the one you want is the one containing
 `app.py`.
 
-**Five of the six tabs need no API key.** Only "Onboard a dataset" calls a language model. The
-app starts fine without one and the other five tabs work fully.
+**No API key is needed.** A file that already uses the expected column names is read directly,
+with no model call. The model is only offered as a fallback, on the "Onboard a dataset" tab,
+when a file's columns are named something else.
 
 Once it is up: pick **AT110** in the sidebar and press **Run pipeline**.
 
@@ -133,7 +134,7 @@ positional, so MACS is Input in AT110 but Output 1 in NbB7, which has a naive ro
 | **Candidates** | Every variant ranked by predicted enrichment | Downloadable. The column is `pred_enr` — a probability of surviving selection, not a predicted count and not an affinity. |
 | **Substitution preferences** | A heatmap of position against substituted residue | This falls straight out of the fitted model. Because each feature is "this position carries something other than the parent", each weight reads directly as a preference for that substitution. Worth your eye — do the strong ones sit where you would expect? |
 | **Score sequences** | A box to paste in sequences the campaign never contained | This is the part counts cannot do. An unsequenced clone has no enrichment to rank by, but it does have a sequence. |
-| **Onboard a dataset** | Upload somebody else's CSV | A language model reads the column names and writes the converter. Needs an API key. |
+| **Onboard a dataset** | Upload somebody else's CSV | A file with the expected column names is read directly. If the names are different, a language model can be asked to work out the mapping — that part, and only that part, needs an API key. Once a file is read, it appears in the sidebar's dataset list and the other five tabs render it. |
 
 ### Does it actually reproduce the paper?
 

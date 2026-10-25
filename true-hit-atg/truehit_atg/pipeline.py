@@ -151,26 +151,21 @@ def heat(res):
     return h.reindex(columns=order)
 
 
+# a Res with the upload-only extras bolted on. a subclass rather than optional fields on
+# Res, so Res stays the single thing the tabs read and no vendored run carries six fields
+# that are always None.
 @dataclass
-class UpRes:
-    rnds: list
-    mode: str
-    n: int
-    n_tr: int
-    n_te: int
-    n_feat: int
-    auc: float
-    pr: float
-    ranked: pd.DataFrame
-    cf: pd.DataFrame
-    conv: bool
-    head: pd.DataFrame
+class UpRes(Res):
+    mode: str = "within-pair"
+    rnds: list = field(default_factory=list)
+    labels: str = "enrichment"
     spread: float = 0.0
     weak: bool = False
-    labels: str = "enrichment"
-    imgt: list = field(default_factory=list)
-    wt: str = ""
-    m: object = None
+    head: pd.DataFrame = None
+
+    @property
+    def n(self):
+        return len(self.tbl)
 
 
 # fits an uploaded table. rounds come in earliest first, from the Spec's insertion order.
@@ -179,7 +174,7 @@ class UpRes:
 # camp reuses a vendored campaign's ANARCI numbering; parent is for any other dataset, which
 # brings its own reference sequence and gets plain 1..L positions. requiring an upload to match
 # a vendored alignment would make "it runs on other data" false.
-def run_upload(raw, camp=None, parent=None, lam=None):
+def run_upload(raw, camp=None, parent=None, lam=None, name=None):
     from . import ingest
 
     if parent:
@@ -226,23 +221,60 @@ def run_upload(raw, camp=None, parent=None, lam=None):
     # assay does. so skill on held-out rows counts too.
     spread = float(ranked[PRED].std())
     weak = bool(spread < 0.02 or len(cf) < 30 or (np.isfinite(auc) and auc < 0.6))
+
+    nmu = n_mut(te[s.AA_ALN], wt)
+    # with one round pair there is no second split to overlap with: train and test are
+    # disjoint by construction, so a strict figure would just restate auc_te.
+    if mode == "cross-round":
+        keep = ~te[s.VAR].isin(set(tr[s.VAR])).values
+        auc_st = model.auc(m, Xte[keep], te[s.ENR_BIN][keep]) if keep.sum() > 10 else float("nan")
+        n_st = int(keep.sum())
+    else:
+        auc_st, n_st = float("nan"), 0
+
+    early_enr = pd.Series(
+        a.set_index(s.VAR)[s.ENR].reindex(te[s.VAR]).values, index=te.index
+    )
+    pair = (rnds[1], rnds[0]) if len(rnds) >= 2 else ("", "")
+    test_pair = (rnds[2], rnds[0]) if mode == "cross-round" else pair
+
     return UpRes(
-        rnds=rnds,
-        mode=mode,
-        labels=labels,
-        spread=spread,
-        weak=weak,
-        n=len(a),
+        camp=name or "upload",
+        train=pair,
+        test=test_pair,
+        tbl=a,
         n_tr=len(tr),
         n_te=len(te),
+        n_abst=int(a[s.ENR_BIN].isna().sum()),
         n_feat=Xtr.shape[1],
-        auc=auc,
-        pr=model.pr_auc(m, Xte, te[s.ENR_BIN]),
-        ranked=ranked,
+        auc_tr=model.auc(m, Xtr, tr[s.ENR_BIN]),
+        auc_te=auc,
+        pr_te=model.pr_auc(m, Xte, te[s.ENR_BIN]),
+        auc_strict=auc_st,
+        n_strict=n_st,
+        auc_nmut=enrich.baseline_auc(nmu, te[s.ENR_BIN]),
+        auc_within=model.cond_auc(te[s.ENR_BIN], model.score(m, Xte), nmu),
+        auc_cnt=enrich.baseline_auc(early_enr, te[s.ENR_BIN]),
+        roc=model.roc(m, Xte, te[s.ENR_BIN]),
+        pk=model.prec_at_k(te[s.ENR_BIN], model.score(m, Xte)),
+        base=float(te[s.ENR_BIN].mean()),
+        mix=enrich.mix_params(a[s.ENR], a[s.ENR].notna()),
         cf=cf,
+        ranked=ranked,
         conv=m.conv,
-        head=a.head(8)[[s.VAR] + [s.cnt(r) for r in rnds] + [s.ENR, s.ENR_BIN]],
         imgt=imgt,
         wt=wt,
         m=m,
+        mode=mode,
+        rnds=rnds,
+        labels=labels,
+        spread=spread,
+        weak=weak,
+        head=a.head(8)[[s.VAR] + [s.cnt(r) for r in rnds] + [s.ENR, s.ENR_BIN]],
     )
+
+
+def heat(res):
+    h = res.cf.pivot_table(index="aa", columns="imgt", values="beta", aggfunc="first")
+    order = [p for p in res.imgt if p in h.columns]
+    return h.reindex(columns=order)

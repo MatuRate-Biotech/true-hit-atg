@@ -96,7 +96,7 @@ def test_run_upload_with_its_own_parent(tmp_path):
     assert u.labels == "supplied"
     assert u.rnds == []
     assert u.n_feat == len(PARENT) * 20
-    assert u.auc > 0.6
+    assert u.auc_te > 0.6
 
 
 # the PAI-1 result, pinned. a one-hot over substitutions cannot transfer to a substitution it
@@ -104,7 +104,7 @@ def test_run_upload_with_its_own_parent(tmp_path):
 def test_all_singles_cannot_be_learned(tmp_path):
     raw = ingest.apply_spec(make(tmp_path, n=800, singles=True), spec(), n_pos=len(PARENT))
     u = pl.run_upload(raw, parent=PARENT, lam=0.05)
-    assert u.auc == pytest.approx(0.5, abs=0.02)
+    assert u.auc_te == pytest.approx(0.5, abs=0.02)
     assert u.weak
 
 

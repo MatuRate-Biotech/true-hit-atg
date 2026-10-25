@@ -20,6 +20,22 @@ class Spec:
     enr_bin_col: str = ""
 
 
+# the Spec for a file that already uses the contract's own column names. round order is
+# column order, so the first cnt_* column is Input. apply_spec then validates it through
+# chk_raw, which is what decides whether the file really conforms.
+def identity_spec(cols):
+    pre = s.cnt("")
+    rnds = {c[len(pre):]: c for c in cols if c.startswith(pre)}
+    return Spec(
+        var=s.VAR,
+        seq=s.AA_ALN,
+        rnds=rnds,
+        enr_col=s.ENR if s.ENR in cols else "",
+        enr_bin_col=s.ENR_BIN if s.ENR_BIN in cols else "",
+        note="column names already match the contract",
+    )
+
+
 def probe(path, n=20):
     df = pd.read_csv(path, nrows=n)
     full = pd.read_csv(path, usecols=[0])

@@ -154,7 +154,7 @@ def test_run_upload_two_rounds_is_within_pair(tmp_path, vendored):
     assert u.mode == "within-pair"
     assert u.rnds == ["MACS", "FACS1"]
     assert u.n_tr > 1000 and u.n_te > 100
-    assert 0.0 <= u.auc <= 1.0
+    assert 0.0 <= u.auc_te <= 1.0
 
 
 def test_run_upload_three_rounds_is_cross_round(tmp_path, vendored):
@@ -162,7 +162,7 @@ def test_run_upload_three_rounds_is_cross_round(tmp_path, vendored):
 
     u = pl.run_upload(write(tmp_path, vendored, ["MACS", "FACS1", "FACS2"], "three.csv"), "AT110")
     assert u.mode == "cross-round"
-    assert u.auc > 0.85
+    assert u.auc_te > 0.85
     assert len(u.cf) > 20
     assert u.n_feat == 2520
 
