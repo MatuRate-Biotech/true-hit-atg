@@ -1,6 +1,6 @@
 import pytest
 
-from truehit_atg import schema as s
+from maturate import schema as s
 
 EXPECT = {
     "AT110": ["Input", "Output 1", "Output 2"],

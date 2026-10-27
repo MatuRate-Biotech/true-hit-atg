@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from truehit_atg import encode, schema as s
+from maturate import encode, schema as s
 
 RNDS = ("MACS", "FACS1")
 
@@ -74,7 +74,7 @@ def test_non_integer_counts_rejected():
 
 
 def test_vendored_table_satisfies_the_raw_contract():
-    from truehit_atg import data
+    from maturate import data
 
     df = data.load("AT110", pair=("FACS1", "MACS"))
     s.chk_raw(df, s.CAMPS["AT110"].rnds, s.CAMPS["AT110"].n_pos, alph=encode.ALPH)

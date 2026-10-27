@@ -1,8 +1,8 @@
-# Plan: two AI features for TrueHit ATG
+# Plan: two AI features for MatuRate
 
-Scope: the inner `true-hit-atg/` directory only. `claude-docs/context.md` in this directory
+Scope: the repo root. `claude-docs/context.md`
 stays the source of truth for everything else; this file covers only the two additions and how
-they attach to what is already built. Nothing here touches `true-hit-qc/`.
+they attach to what is already built.
 
 Both features are **additive**. The app, the 43 tests and the measured AT110 numbers must still
 work with both features absent or failed. If either runs out of time, delete its tab and ship.
@@ -63,7 +63,7 @@ Rules `chk_raw` enforces, mirroring `chk()`'s style of naming offenders rather t
 
 `AA` and `CDR3` are optional on upload. Derive `AA` as `aa_aln` with gaps stripped.
 
-### A2. `truehit_atg/ingest.py` — deterministic half
+### A2. `maturate/ingest.py` — deterministic half
 
 No LLM in this file. It is the thing the agent targets and the thing tests exercise.
 
@@ -100,7 +100,7 @@ reconstructed against the parent. If that case is in scope, add an optional
 only `pd`, `np` and the input frame, with no `__import__`, no file and no network access. Default
 it off. Say in the UI when a spec carries generated code.
 
-### A3. `truehit_atg/agent.py` — the loop
+### A3. `maturate/agent.py` — the loop
 
 ```python
 @dataclass
@@ -224,7 +224,7 @@ Test that `place` round-trips every position and that output length always equal
 `len(wt_aln)`. A bug here silently shifts every downstream position, which is exactly the failure
 mode `chk()` exists to prevent. Write these tests first.
 
-### B2. `truehit_atg/design.py`
+### B2. `maturate/design.py`
 
 ```python
 def esm_scores(seq, model_name=None):

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from truehit_atg import data, schema as s
+from maturate import data, schema as s
 
 
 @pytest.mark.parametrize("camp", list(s.CAMPS))

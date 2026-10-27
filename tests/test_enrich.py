@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from truehit_atg import data, enrich, schema as s
+from maturate import data, enrich, schema as s
 
 PAIR = ("FACS1", "MACS")
 

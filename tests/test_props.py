@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from truehit_atg import data, encode, enrich, model, schema as s
-from truehit_atg.config import CFG
+from maturate import data, encode, enrich, model, schema as s
+from maturate.config import CFG
 
 
 @pytest.fixture(scope="module")

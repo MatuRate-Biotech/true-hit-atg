@@ -4,7 +4,7 @@ import numpy as np
 
 import pytest
 
-from truehit_atg import pipeline as pl, schema as s
+from maturate import pipeline as pl, schema as s
 
 
 # the paper's experiment: train on the early pair, test on a later one. pinned wherever a

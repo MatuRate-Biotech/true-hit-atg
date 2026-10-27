@@ -49,7 +49,7 @@ so the usable training set is smaller than the variant count. Measured from the 
 | RX002 | FACS2/MACS | 13,871 | 11,096 | 2,775 | 41% |
 | RX002 | FACS2/FACS1 | 14,159 | 11,327 | 2,832 | 40% |
 
-Full table from `pairs()` in `truehit_atg/schema.py`; regenerate with the snippet in the README.
+Full table from `pairs()` in `maturate/schema.py`; regenerate with the snippet in the README.
 
 ## Two things the dataset does NOT ship
 

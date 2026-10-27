@@ -1,4 +1,4 @@
-# RapidMat — a walkthrough
+# MatuRate — a walkthrough
 
 Hi Jessica. This is the one document to read if you want to understand what got built and run
 it yourself. It assumes you know antibodies and selection, and assumes nothing about Python.
@@ -46,19 +46,19 @@ A run takes a few seconds on a laptop. No GPU, nothing to wait for.
 
 | File | Does |
 |---|---|
-| `truehit_atg/enrich.py` | Step 1 and 2 — normalising, log ratios, the mixture labelling, the train/test split |
-| `truehit_atg/encode.py` | Step 3 — turning sequences into numbers, and the parent-column drop |
-| `truehit_atg/model.py` | Step 4 — fitting, scoring, and the metrics |
-| `truehit_atg/pipeline.py` | Runs the four steps in order and hands back one result object |
+| `maturate/enrich.py` | Step 1 and 2 — normalising, log ratios, the mixture labelling, the train/test split |
+| `maturate/encode.py` | Step 3 — turning sequences into numbers, and the parent-column drop |
+| `maturate/model.py` | Step 4 — fitting, scoring, and the metrics |
+| `maturate/pipeline.py` | Runs the four steps in order and hands back one result object |
 
 ### Getting data in
 
 | File | Does |
 |---|---|
-| `truehit_atg/schema.py` | The contract: which columns must exist, and the checks that refuse bad input |
-| `truehit_atg/data.py` | Loads the three campaigns from the paper |
-| `truehit_atg/ingest.py` | Loads somebody else's CSV, once someone says which column is which |
-| `truehit_atg/agent.py` | Asks a language model to work out which column is which, so nobody has to |
+| `maturate/schema.py` | The contract: which columns must exist, and the checks that refuse bad input |
+| `maturate/data.py` | Loads the three campaigns from the paper |
+| `maturate/ingest.py` | Loads somebody else's CSV, once someone says which column is which |
+| `maturate/agent.py` | Asks a language model to work out which column is which, so nobody has to |
 
 ### Everything else
 
@@ -67,9 +67,9 @@ A run takes a few seconds on a laptop. No GPU, nothing to wait for.
 | `app.py` | The web interface. The only file that knows a screen exists. |
 | `data/paul2026/` | The paper's data for all three campaigns, committed, so no downloads |
 | `tests/` | 142 automated checks, including that we reproduce the paper's published numbers |
-| `truehit_atg/config.py` | Every tunable in one place — which campaign, which rounds, penalty strength |
+| `maturate/config.py` | Every tunable in one place — which campaign, which rounds, penalty strength |
 
-One deliberate choice: **nothing inside `truehit_atg/` imports anything to do with the
+One deliberate choice: **nothing inside `maturate/` imports anything to do with the
 interface.** The app only calls one function and displays what comes back. That is why a proper
 website can be put on top later without touching the analysis.
 
@@ -82,8 +82,8 @@ You need **Python 3.10 or newer** and git. Nothing else — the data comes with 
 ### macOS or Linux
 
 ```bash
-git clone https://github.com/heller1729/true-hit-atg
-cd true-hit-atg/true-hit-atg
+git clone https://github.com/MatuRate-Biotech/MatuRate
+cd MatuRate
 
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -95,8 +95,8 @@ python3 -m venv .venv
 ### Windows
 
 ```bash
-git clone https://github.com/heller1729/true-hit-atg
-cd true-hit-atg\true-hit-atg
+git clone https://github.com/MatuRate-Biotech/MatuRate
+cd MatuRate
 
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
@@ -107,10 +107,6 @@ python -m venv .venv
 
 A browser tab opens by itself. If it does not, the terminal prints a `localhost` address — open
 that.
-
-**Run the commands from inside the inner `true-hit-atg` folder.** The repository and the folder
-share a name, so there are two levels with the same name; the one you want is the one containing
-`app.py`.
 
 **No API key is needed.** A file that already uses the expected column names is read directly,
 with no model call. The model is only offered as a fallback, on the "Onboard a dataset" tab,

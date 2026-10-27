@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import pytest
 
-from truehit_atg import agent, data, ingest, schema as s
+from maturate import agent, data, ingest, schema as s
 
 
 class Blk:

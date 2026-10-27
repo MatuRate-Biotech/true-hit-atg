@@ -10,10 +10,10 @@ from matplotlib.ticker import PercentFormatter
 import numpy as np
 import streamlit as st
 
-from truehit_atg import agent, enrich, ingest, pipeline as pl, schema as s
-from truehit_atg.config import CFG
+from maturate import agent, enrich, ingest, pipeline as pl, schema as s
+from maturate.config import CFG
 
-st.set_page_config(page_title="RapidMat", layout="wide")
+st.set_page_config(page_title="MatuRate", layout="wide")
 
 
 UP = "Uploaded file"
@@ -161,7 +161,7 @@ def provenance(order):
     return "; ".join(bits) + "."
 
 
-st.title("RapidMat")
+st.title("MatuRate")
 st.caption(
     "Ranks nanobody variants by **predicted enrichment** (what survives selection) from "
     "sequence alone. Enrichment is a proxy for binding confounded by expression and "
@@ -605,7 +605,7 @@ with t6:
         del st.session_state["ob"]
     if fu is not None:
         nm = Path(fu.name).stem
-        tmp = Path(tempfile.gettempdir()) / f"truehit_upload_{abs(hash(fu.name)) % 10**8}.csv"
+        tmp = Path(tempfile.gettempdir()) / f"maturate_upload_{abs(hash(fu.name)) % 10**8}.csv"
         tmp.write_bytes(fu.getvalue())
 
         try:

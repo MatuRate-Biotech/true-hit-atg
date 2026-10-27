@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from scipy.stats import spearmanr
 
-from truehit_atg import data, encode, enrich, ingest, model, schema as s
+from maturate import data, encode, enrich, ingest, model, schema as s
 
 PAIR = ("FACS1", "MACS")
 SPEC = ingest.Spec(
@@ -148,7 +148,7 @@ def write(tmp_path, vendored, rnds, name):
 
 
 def test_run_upload_two_rounds_is_within_pair(tmp_path, vendored):
-    from truehit_atg import pipeline as pl
+    from maturate import pipeline as pl
 
     u = pl.run_upload(write(tmp_path, vendored, ["MACS", "FACS1"], "two.csv"), "AT110")
     assert u.mode == "within-pair"
@@ -158,7 +158,7 @@ def test_run_upload_two_rounds_is_within_pair(tmp_path, vendored):
 
 
 def test_run_upload_three_rounds_is_cross_round(tmp_path, vendored):
-    from truehit_atg import pipeline as pl
+    from maturate import pipeline as pl
 
     u = pl.run_upload(write(tmp_path, vendored, ["MACS", "FACS1", "FACS2"], "three.csv"), "AT110")
     assert u.mode == "cross-round"
@@ -168,7 +168,7 @@ def test_run_upload_three_rounds_is_cross_round(tmp_path, vendored):
 
 
 def test_run_upload_never_says_affinity(tmp_path, vendored):
-    from truehit_atg import pipeline as pl
+    from maturate import pipeline as pl
 
     u = pl.run_upload(write(tmp_path, vendored, ["MACS", "FACS1"], "cols.csv"), "AT110")
     for c in u.ranked.columns:
@@ -176,7 +176,7 @@ def test_run_upload_never_says_affinity(tmp_path, vendored):
 
 
 def test_run_upload_rejects_one_round(tmp_path, vendored):
-    from truehit_atg import pipeline as pl
+    from maturate import pipeline as pl
 
     raw = write(tmp_path, vendored, ["MACS", "FACS1"], "one.csv").drop(columns=[s.cnt("FACS1")])
     with pytest.raises(ValueError, match="at least two rounds"):
@@ -184,7 +184,7 @@ def test_run_upload_rejects_one_round(tmp_path, vendored):
 
 
 def test_run_upload_rejects_too_few_labelled_rows(tmp_path, vendored):
-    from truehit_atg import pipeline as pl
+    from maturate import pipeline as pl
 
     raw = write(tmp_path, vendored, ["MACS", "FACS1"], "small.csv").head(12)
     with pytest.raises(ValueError, match="survive labelling"):
@@ -192,7 +192,7 @@ def test_run_upload_rejects_too_few_labelled_rows(tmp_path, vendored):
 
 
 def test_weak_fit_is_flagged(tmp_path, vendored):
-    from truehit_atg import pipeline as pl
+    from maturate import pipeline as pl
 
     # a 900-row slice carries almost no signal; the ranking must not pass as a result
     u = pl.run_upload(write(tmp_path, vendored.head(900), ["MACS", "FACS1"], "weak.csv"), "AT110")
@@ -201,7 +201,7 @@ def test_weak_fit_is_flagged(tmp_path, vendored):
 
 
 def test_full_file_is_not_flagged_weak(tmp_path, vendored):
-    from truehit_atg import pipeline as pl
+    from maturate import pipeline as pl
 
     u = pl.run_upload(write(tmp_path, vendored, ["MACS", "FACS1", "FACS2"], "strong.csv"), "AT110")
     assert not u.weak

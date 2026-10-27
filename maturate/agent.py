@@ -73,7 +73,7 @@ def build_client():
     except ImportError as e:
         raise RuntimeError(
             "the anthropic package is not installed; run "
-            "`pip install -r requirements.txt` in true-hit-atg/"
+            "`pip install -r requirements.txt`"
         ) from e
     try:
         # zero-arg resolves ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or an `ant auth login`

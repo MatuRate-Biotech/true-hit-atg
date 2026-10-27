@@ -1,6 +1,6 @@
 import pytest
 
-from truehit_atg import encode, schema as s
+from maturate import encode, schema as s
 
 GAPPY = "QV-LQ--SGG-"
 

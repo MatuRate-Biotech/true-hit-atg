@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from truehit_atg import encode, ingest, model, pipeline as pl, schema as s
+from maturate import encode, ingest, model, pipeline as pl, schema as s
 
 # a tiny synthetic "outside" dataset: its own parent, no counts, a supplied score.
 PARENT = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ"
