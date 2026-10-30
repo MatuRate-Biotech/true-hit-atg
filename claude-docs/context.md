@@ -1,11 +1,12 @@
 # MatuRate — working context
 
-Scope: the repo root. This is the working context, trimmed from
-the repo-level `claude-docs/context.md`, which stays the source of truth for anything covering
-the original hackathon context.
+Scope: the repo root. This is the working context for the MatuRate project.
 
-Event: Cal Hacks 13.0, Palace of Fine Arts, San Francisco. Hacking from Friday 2026-10-23
-evening, judging Sunday. ~36 hours.
+GitHub: `MatuRate-Biotech/MatuRate` (repo rename pending transfer of ownership from `heller1729`).
+Local directory: `maturate/`. Python package: `maturate/`.
+
+Origin: Cal Hacks 13.0, Palace of Fine Arts, San Francisco, 2026-10-23 to 2026-10-25.
+Now continuing as an open-source project post-hackathon.
 
 ---
 
@@ -15,11 +16,12 @@ evening, judging Sunday. ~36 hours.
   NSF-funded CyberSMART project. Backend and software, near-zero hardware experience. Owns the
   ML layer: sequence encoding, training, evaluation, and the app that returns ranked candidates.
 - **Jessica Pan** (Slack "Percabeth"). Antibody and molecular biology background, authored the
-  proposal this directory implements. Owns the data and enrichment layer: assembling per-round
-  data, enrichment ratios, count thresholds and normalization, and the align-and-count front end
-  if it survives scoping.
+  proposal this project implements. Owns the data and enrichment layer: assembling per-round
+  data, enrichment ratios, count thresholds and normalization, and the alignment layer
+  (active next priority post-hackathon).
 
-Two other teammates dropped out on Oct 23. Plan for a 2-person team.
+Two other teammates dropped out on Oct 23. The hackathon was a 2-person team; the project
+continues post-hackathon with Jessica as the primary developer.
 
 Code style that applies to anything generated here:
 - No comments that read as AI-authored.
@@ -197,7 +199,7 @@ Three campaigns, each a nanobody matured against a different GPCR target:
 | NbB7 | β2AR | naive, MACS, FACS1, FACS2, FACS3 | 54,102 | 125 |
 | RX002 | RXFP1 | MACS, FACS1, FACS2 | 21,507 | 122 |
 
-**[data/DATASET.md](../data/DATASET.md) is the full record** — per-file contents, labeled counts
+**[data/DATASET.md](data/DATASET.md) is the full record** — per-file contents, labeled counts
 for all 16 round pairs, and the two things the dataset does not ship. Do not re-derive those
 numbers; read that file. The essentials:
 
@@ -408,7 +410,7 @@ expression clones can dominate FACS2 counts, and polyreactivity drove cysteine e
 | Antigen-specific comparison | open | three targets to compare; less data per target, more models to juggle |
 | 2D landscape map | open | striking but purely presentational; does not improve the model |
 | Developability / polyreactivity filter | open | real-world credibility, mostly rule-based, but a pretrained model already exists |
-| Alignment layer | open | the thing that makes uploads general; adds an HMMER dependency |
+| Alignment layer | **active, next priority** | the thing that makes uploads general; ANARCI (antibody-specific) + MAFFT (general) planned |
 | Validation vs. measured affinities | **unblocked, needs transcription** | not in the download, but in the paper: RX002 BLI singles in Supp Table 4, SPR designs in Fig 5A. Switch campaign to RX002 for this |
 | Align + count from raw FASTQ | **blocked** | no raw FASTQ ships, and input is assumed pre-aligned |
 | CNN / novel sequence design | **cut** | logistic regression only; generation is replaced by scoring externally designed candidates |
@@ -438,9 +440,10 @@ data/
 tests/         142 tests
 ```
 
-Setup is `python -m venv .venv`, `.venv/Scripts/pip install -r requirements.txt`, then
-`.venv/Scripts/python -m pytest -q` and `.venv/Scripts/python -m streamlit run app.py` from
-this directory. `pythonpath = .` in `pytest.ini` is relative to here, so run from here.
+Setup is `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`, then
+`.venv/bin/python -m pytest -q` and `.venv/bin/python -m streamlit run app.py` from
+the repo root. On Windows use `.venv\Scripts\` instead of `.venv/bin/`.
+`pythonpath = .` in `pytest.ini` is relative to the repo root.
 
 A full AT110 run is a few seconds on CPU: the solver converges in 127 iterations. The app is
 six tabs — enrichment, model, ranked candidates, the substitution-preference heatmap, a box for
@@ -998,8 +1001,10 @@ rows (771 + 214), confirmed from the downloaded CSV.
      `api.mavedb.org/api/v1`. Riskier, because counts are optional per submitter.
    - Criteria for any candidate: one row per variant; counts for ≥ 2 rounds or conditions
      (Tier B only); all sequences equal length and position-matched; protein, not DNA.
-3. **Alignment layer.** ANARCI numbering so ragged uploads become usable. ~3.7 min per 10k
-   sequences by upstream's protocol, but it adds a conda-installable dependency (HMMER).
+3. **Alignment layer.** **Active next priority (post-hackathon).** Two approaches planned:
+   ANARCI (antibody-specific, HMM-based IMGT numbering, ~3.7 min per 10k sequences) and
+   MAFFT (general-purpose MSA, works on non-antibody proteins). ANARCI first for the primary
+   nanobody use case; MAFFT as a fallback for broader applicability.
 4. **React frontend** over the same `pipeline.run()`. The core holds no UI import, so this is
    additive.
 
@@ -1072,8 +1077,9 @@ Settle with Jessica. Several have moved since the proposal; the resolved ones ar
    shipped labels at 99.4%. Worth telling Jessica that it abstains on ~1,400 of 5,257 AT110
    variants, since that is a real modelling choice and not an implementation detail.
 7. **How much alignment work the app takes on.** Refusing ragged input is built: `chk()` names
-   the offending rows. Whether to go further and ship ANARCI numbering is the open half, and it
-   is what decides whether the tool is general or only runs on data shaped like this paper's.
+   the offending rows. **Resolved post-hackathon: building an alignment layer is the active next
+   priority.** Plan is ANARCI for antibody-specific IMGT numbering, plus MAFFT as a
+   general-purpose fallback for non-antibody datasets.
 8. Whether the align-and-count front end from raw FASTQ is in scope. **Resolved: no.** No raw
    FASTQ ships, and aligned per-variant counts are the input.
 9. Whether the CNN is cut. **Resolved: cut for good**, per Pratham on 2026-10-23. Logistic
@@ -1098,8 +1104,9 @@ Settle with Jessica. Several have moved since the proposal; the resolved ones ar
     control. Still worth Jessica's read on the biology of "absent from input, present later",
     and on the two confounds the paper raises that we do not handle: high expression clones
     dominating FACS2 counts, and polyreactivity-driven cysteine enrichment. See section 6.
-14. Who owns integration between workstreams — currently nobody, and this is
-    parked.
+14. ~~Who owns integration between workstreams.~~ **Resolved: moot.** The repo is now a
+    single-project repo (MatuRate only); `true-hit-qc` was removed during the post-hackathon
+    restructure on 2026-10-27.
 
 ---
 
@@ -1121,4 +1128,4 @@ Settle with Jessica. Several have moved since the proposal; the resolved ones ar
   growth-versus-binding extension): https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6259164/
 - AbLang: https://pmc.ncbi.nlm.nih.gov/articles/PMC9710568
 - AntiBERTy: https://arxiv.org/abs/2112.07782v1
-- Repo-level context covering both ideas: `../../claude-docs/context.md`
+- MatuRate repo: https://github.com/MatuRate-Biotech/MatuRate (pending repo rename from `true-hit-atg`)
